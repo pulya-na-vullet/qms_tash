@@ -329,16 +329,15 @@
     <p class="page-subtitle">Создание, редактирование и управление учетными записями пользователей</p>
 
     <!-- Сообщения -->
-    <div th:if="${successMessage}" class="alert alert-success alert-dismissible fade show" role="alert">
-        <i class="bi bi-check-circle-fill me-2"></i>
-        <span th:text="${successMessage}"></span>
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
-    <div th:if="${errorMessage}" class="alert alert-danger alert-dismissible fade show" role="alert">
-        <i class="bi bi-exclamation-triangle-fill me-2"></i>
-        <span th:text="${errorMessage}"></span>
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    </div>
+    {% if messages %}
+        {% for message in messages %}
+            <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                <i class="bi bi-info-circle-fill me-2"></i>
+                <span>{{ message }}</span>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        {% endfor %}
+    {% endif %}
 
     <!-- Статистика -->
     <div class="row mb-5">
@@ -386,29 +385,30 @@
     <!-- Форма создания пользователя -->
     <div class="form-section">
         <h4 class="section-title">Создать нового пользователя</h4>
-        <form th:action="@{/admin/users}" method="post" th:object="${newUser}">
+        <form action="/admin/users" method="post">
+            {% csrf_token %}
             <div class="row g-3">
                 <div class="col-md-6">
                     <div class="form-floating">
-                        <input type="text" th:field="*{username}" class="form-control form-control-lg" id="username" placeholder="Логин" required>
+                        <input type="text" name="username" class="form-control form-control-lg" id="username" placeholder="Логин" required>
                         <label for="username"><i class="bi bi-person-badge me-2"></i>Логин</label>
                     </div>
                 </div>
                 <div class="col-md-6">
                     <div class="form-floating">
-                        <input type="password" th:field="*{password}" class="form-control form-control-lg" id="password" placeholder="Пароль" required>
+                        <input type="password" name="password" class="form-control form-control-lg" id="password" placeholder="Пароль" required>
                         <label for="password"><i class="bi bi-key-fill me-2"></i>Пароль</label>
                     </div>
                 </div>
                 <div class="col-md-6">
                     <div class="form-floating">
-                        <input type="text" th:field="*{fullName}" class="form-control form-control-lg" id="fullName" placeholder="Полное имя" required>
+                        <input type="text" name="fullName" class="form-control form-control-lg" id="fullName" placeholder="Полное имя" required>
                         <label for="fullName"><i class="bi bi-person-lines-fill me-2"></i>Полное имя</label>
                     </div>
                 </div>
                 <div class="col-md-6">
                     <div class="form-floating">
-                        <input type="email" th:field="*{email}" class="form-control form-control-lg" id="email" placeholder="Email">
+                        <input type="email" name="email" class="form-control form-control-lg" id="email" placeholder="Email">
                         <label for="email"><i class="bi bi-envelope-fill me-2"></i>Email</label>
                     </div>
                 </div>
@@ -416,10 +416,9 @@
                     <div class="form-floating">
                         <select name="role" class="form-select form-control-lg" id="role" required>
                             <option value="">Выберите роль</option>
-                            <option th:each="role : ${roles}"
-                                    th:value="${role}"
-                                    th:text="${role}">
-                            </option>
+                            {% for role in roles %}
+                                <option value="{{ role }}">{{ role }}</option>
+                            {% endfor %}
                         </select>
                         <label for="role"><i class="bi bi-person-gear me-2"></i>Роль пользователя</label>
                     </div>
@@ -457,48 +456,48 @@
                     </tr>
                     </thead>
                     <tbody>
-                    <tr th:each="user : ${users}">
-                        <td class="fw-bold" th:text="${user.id}">1</td>
-                        <td th:text="${user.username}">admin</td>
-                        <td th:text="${user.fullName}">Администратор</td>
-                        <td th:text="${user.email}">admin@example.com</td>
+                    {% for user in users %}
+                    <tr>
+                        <td class="fw-bold">{{ user.id }}</td>
+                        <td>{{ user.username }}</td>
+                        <td>{{ user.full_name }}</td>
+                        <td>{{ user.email|default:"-" }}</td>
                         <td>
-                            <span th:each="role : ${user.roles}"
-                                  class="badge role-badge"
-                                  th:classappend="${role == 'ADMIN'} ? 'bg-danger' : 'bg-primary'"
-                                  th:text="${role}">
-                            </span>
+                            {% for role in user.roles %}
+                                <span class="badge role-badge {% if role == 'ADMIN' %}bg-danger{% else %}bg-primary{% endif %}">{{ role }}</span>
+                            {% endfor %}
                         </td>
                         <td>
-                            <span th:if="${user.enabled}"
-                                  class="badge status-badge bg-success">
+                            {% if user.enabled %}
+                            <span class="badge status-badge bg-success">
                                 <i class="bi bi-check-circle me-1"></i>Активен
                             </span>
-                            <span th:unless="${user.enabled}"
-                                  class="badge status-badge bg-danger">
+                            {% else %}
+                            <span class="badge status-badge bg-danger">
                                 <i class="bi bi-x-circle me-1"></i>Неактивен
                             </span>
+                            {% endif %}
                         </td>
                         <td class="action-buttons">
-                            <form th:action="@{/admin/users/{id}/activate(id=${user.id})}"
-                                  method="post"
-                                  th:if="${!user.enabled}"
-                                  style="display: inline-block;">
+                            {% if not user.enabled %}
+                            <form action="/admin/users/{{ user.id }}/activate" method="post" style="display: inline-block;">
+                                {% csrf_token %}
                                 <button type="submit" class="btn btn-success btn-sm">
                                     <i class="bi bi-power me-1"></i>Активировать
                                 </button>
                             </form>
-                            <form th:action="@{/admin/users/{id}/deactivate(id=${user.id})}"
-                                  method="post"
-                                  th:if="${user.enabled}"
-                                  style="display: inline-block;">
+                            {% else %}
+                            <form action="/admin/users/{{ user.id }}/deactivate" method="post" style="display: inline-block;">
+                                {% csrf_token %}
                                 <button type="submit" class="btn btn-warning btn-sm">
                                     <i class="bi bi-power me-1"></i>Деактивировать
                                 </button>
                             </form>
+                            {% endif %}
                         </td>
                     </tr>
-                    <tr th:if="${#lists.isEmpty(users)}">
+                    {% empty %}
+                    <tr>
                         <td colspan="7">
                             <div class="empty-state">
                                 <i class="bi bi-people"></i>
@@ -507,6 +506,7 @@
                             </div>
                         </td>
                     </tr>
+                    {% endfor %}
                     </tbody>
                 </table>
             </div>
