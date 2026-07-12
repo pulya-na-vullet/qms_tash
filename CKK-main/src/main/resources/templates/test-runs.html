@@ -321,98 +321,13 @@
     <div class="row">
         <div class="col-12">
             <div id="testRunsList">
-                <!-- Изначальное состояние (отображается при загрузке страницы) -->
-                <div id="emptyTestRuns" class="text-center py-5" th:if="${#lists.isEmpty(testRuns)}">
+                <div id="emptyTestRuns" class="text-center py-5 d-none">
                     <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
                     <h4 class="text-muted">Тест-раны не найдены</h4>
                     <p class="text-muted">Создайте первый тест-ран с помощью кнопки выше</p>
                 </div>
 
-                <!-- Контейнер для результатов поиска -->
                 <div id="searchResultsContainer">
-                    <div id="testRunsContainer" th:unless="${#lists.isEmpty(testRuns)}">
-                        <div th:each="testRun : ${testRuns}" class="card test-run-card">
-                            <div class="card-body">
-                                <div class="d-flex justify-content-between align-items-start">
-                                    <div class="flex-grow-1">
-                                        <h5 class="card-title">
-                                            <a href="/test-run/{{ testRun.id }}" class="text-decoration-none">
-                                                <i class="fas fa-play-circle me-2 text-primary"></i>
-                                                <span th:text="${testRun.title}"></span>
-                                            </a>
-                                        </h5>
-                                        <p class="card-text text-muted" th:text="${testRun.description} ?: 'Описание отсутствует'"></p>
-
-                                        <!-- Статистика выполнения -->
-                                        <div class="stats-container" th:if="${testRun.testCases}">
-                                            <div class="progress mb-2">
-                                                <div class="progress-bar bg-success" role="progressbar"
-                                                     th:style="'width: ' + ${testRun.stats.passedPercentage} + '%'"></div>
-                                                <div class="progress-bar bg-danger" role="progressbar"
-                                                     th:style="'width: ' + ${testRun.stats.failedPercentage} + '%'"></div>
-                                                <div class="progress-bar bg-warning" role="progressbar"
-                                                     th:style="'width: ' + ${testRun.stats.skippedPercentage} + '%'"></div>
-                                            </div>
-                                            <div class="row">
-                                                <div class="col-md-6">
-                                                    <div class="stat-item">
-                                                        <span class="stat-badge bg-success"></span>
-                                                        <small>Успешно: <strong th:text="${testRun.stats.passedCount}"></strong></small>
-                                                    </div>
-                                                    <div class="stat-item">
-                                                        <span class="stat-badge bg-danger"></span>
-                                                        <small>Провалено: <strong th:text="${testRun.stats.failedCount}"></strong></small>
-                                                    </div>
-                                                </div>
-                                                <div class="col-md-6">
-                                                    <div class="stat-item">
-                                                        <span class="stat-badge bg-warning"></span>
-                                                        <small>Пропущено: <strong th:text="${testRun.stats.skippedCount}"></strong></small>
-                                                    </div>
-                                                    <div class="stat-item">
-                                                        <span class="stat-badge bg-secondary"></span>
-                                                        <small>Не начато: <strong th:text="${testRun.stats.notRunCount}"></strong></small>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <div class="text-center mt-2">
-                                                <small class="text-muted">Всего тест-кейсов: <strong th:text="${testRun.stats.totalCount}"></strong></small>
-                                            </div>
-                                        </div>
-
-                                        <div class="d-flex flex-wrap gap-3 mt-2">
-                                            <small><i class="fas fa-user me-1"></i>Исполнитель: <span th:text="${testRun.executorName}"></span></small>
-                                            <small><i class="fas fa-user-plus me-1"></i>Создатель: <span th:text="${testRun.creatorName}"></span></small>
-                                            <small><i class="fas fa-calendar me-1"></i>Создан: <span th:text="${#temporals.format(testRun.createdAt, 'dd.MM.yyyy HH:mm')}"></span></small>
-                                            <small><i class="fas fa-vial me-1"></i>Тест-кейсов: <span th:text="${testRun.testCases != null ? testRun.testCases.size() : 0}"></span></small>
-                                        </div>
-                                    </div>
-                                    <div class="text-end">
-                                        <!-- Используем метод из утилит -->
-                                        <span class="badge status-badge"
-                                              th:classappend="'bg-' + ${thUtils.getStatusBadgeClass(testRun.status)}">
-                                            <span th:text="${testRun.status != null ? testRun.status.displayName : 'Неизвестно'}"></span>
-                                        </span>
-                                        <div class="mt-2">
-                                            <button class="btn btn-outline-primary btn-sm edit-test-run-btn me-1"
-                                                    th:data-id="${testRun.id}"
-                                                    th:data-title="${testRun.title}"
-                                                    th:data-description="${testRun.description}"
-                                                    th:data-executor="${testRun.executorName}"
-                                                    th:data-creator="${testRun.creatorName}">
-                                                <i class="fas fa-edit"></i>
-                                            </button>
-                                            <button class="btn btn-outline-danger btn-sm delete-test-run-btn"
-                                                    th:data-id="${testRun.id}"
-                                                    th:data-title="${testRun.title}">
-                                                <i class="fas fa-trash"></i>
-                                            </button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
                 </div>
             </div>
         </div>
@@ -707,6 +622,7 @@
             return;
         }
 
+        loadTestRuns();
         loadTestCasesAndSuites();
 
         document.getElementById('searchButton').addEventListener('click', searchTestRuns);
@@ -812,35 +728,51 @@
             });
     }
 
+    function loadTestRuns() {
+        fetch(`/api/projects/${currentProjectId}/test-runs`)
+            .then(r => {
+                if (!r.ok) throw new Error('Network response was not ok');
+                return r.json();
+            })
+            .then(testRuns => {
+                renderTestRuns(testRuns);
+            })
+            .catch(error => {
+                console.error('Error loading test runs:', error);
+                const container = document.getElementById('searchResultsContainer');
+                container.innerHTML = `<div class="alert alert-danger">Ошибка загрузки тест-ранов: ${error.message}</div>`;
+            });
+    }
+
     function displaySearchResults(testRuns, searchTerm) {
+        renderTestRuns(testRuns, searchTerm);
+    }
+
+    function renderTestRuns(testRuns, searchTerm = '') {
         const container = document.getElementById('searchResultsContainer');
-
-        // Скрываем изначальный контейнер с тест-ранами
-        const initialContainer = document.getElementById('testRunsContainer');
-        if (initialContainer) {
-            initialContainer.style.display = 'none';
-        }
-
-        // Скрываем изначальное пустое состояние
         const emptyEl = document.getElementById('emptyTestRuns');
-        if (emptyEl) {
-            emptyEl.style.display = 'none';
-        }
-
+        const isSearch = Boolean(searchTerm && searchTerm.trim());
         if (testRuns.length === 0) {
-            container.innerHTML = `
-                <div class="search-empty-state">
-                    <i class="fas fa-search fa-3x text-muted mb-3"></i>
-                    <h4 class="text-muted">По запросу "${searchTerm}" ничего не найдено</h4>
-                    <p class="text-muted">Попробуйте изменить поисковый запрос</p>
-                    <button class="btn btn-primary mt-2" onclick="clearSearch()">
-                        <i class="fas fa-times me-2"></i>Очистить поиск
-                    </button>
-                </div>
-            `;
+            if (isSearch) {
+                if (emptyEl) emptyEl.classList.add('d-none');
+                container.innerHTML = `
+                    <div class="search-empty-state">
+                        <i class="fas fa-search fa-3x text-muted mb-3"></i>
+                        <h4 class="text-muted">По запросу "${searchTerm}" ничего не найдено</h4>
+                        <p class="text-muted">Попробуйте изменить поисковый запрос</p>
+                        <button class="btn btn-primary mt-2" onclick="clearSearch()">
+                            <i class="fas fa-times me-2"></i>Очистить поиск
+                        </button>
+                    </div>
+                `;
+            } else {
+                container.innerHTML = '';
+                if (emptyEl) emptyEl.classList.remove('d-none');
+            }
             return;
         }
 
+        if (emptyEl) emptyEl.classList.add('d-none');
         container.innerHTML = testRuns.map(tr => {
             const stats = tr.stats || {
                 totalCount: tr.testCases ? tr.testCases.length : 0,
@@ -911,7 +843,7 @@
                             </div>
                         </div>
                         <div class="text-end">
-                            <span class="badge status-badge ${getStatusBadgeClass(tr.status)}">${tr.status ? tr.status.displayName : 'Неизвестно'}</span>
+                            <span class="badge status-badge ${getStatusBadgeClass(tr.status)}">${getStatusDisplayName(tr.status)}</span>
                             <div class="mt-2">
                                 <button class="btn btn-outline-primary btn-sm edit-test-run-btn me-1"
                                         data-id="${tr.id}"
@@ -959,20 +891,7 @@
 
     function clearSearch() {
         document.getElementById('searchInput').value = '';
-        const container = document.getElementById('searchResultsContainer');
-        container.innerHTML = '';
-
-        // Показываем изначальный контейнер
-        const initialContainer = document.getElementById('testRunsContainer');
-        if (initialContainer) {
-            initialContainer.style.display = 'block';
-        }
-
-        // Показываем изначальное пустое состояние если нужно
-        const emptyEl = document.getElementById('emptyTestRuns');
-        if (emptyEl) {
-            emptyEl.style.display = 'block';
-        }
+        loadTestRuns();
     }
 
     function getStatusBadgeClass(status) {
@@ -982,6 +901,16 @@
             case 'IN_PROGRESS': return 'bg-warning';
             case 'COMPLETED': return 'bg-success';
             default: return 'bg-secondary';
+        }
+    }
+
+    function getStatusDisplayName(status) {
+        if (!status) return 'Неизвестно';
+        switch (status) {
+            case 'NOT_STARTED': return 'Не начат';
+            case 'IN_PROGRESS': return 'В процессе';
+            case 'COMPLETED': return 'Завершен';
+            default: return status;
         }
     }
 
