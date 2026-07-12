@@ -343,7 +343,11 @@ def admin_ai_settings_page(request):
                 messages.error(request, "Интервал обновления токена должен быть целым числом (мс).")
                 return redirect("/admin/ai-settings")
 
-        if enabled and (not api_key or not folder_id):
+        # Allow enabling provider when credentials were previously saved and
+        # user only toggles "enabled" without re-entering secrets.
+        effective_api_key = api_key or (settings_obj.api_key or "").strip()
+        effective_folder_id = folder_id or (settings_obj.folder_id or "").strip()
+        if enabled and (not effective_api_key or not effective_folder_id):
             messages.error(request, "Для включения YandexGPT необходимо заполнить API Key и Folder ID.")
             return redirect("/admin/ai-settings")
 
