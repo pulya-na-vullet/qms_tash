@@ -134,7 +134,8 @@ class TestRunTestCaseSerializer(serializers.ModelSerializer):
 
 class TestRunSerializer(serializers.ModelSerializer):
     projectId = serializers.IntegerField(source="project_id", read_only=True)
-    testRunTestCases = TestRunTestCaseSerializer(many=True, read_only=True, source="test_run_test_cases")
+    testCases = TestRunTestCaseSerializer(many=True, read_only=True, source="test_run_test_cases")
+    stats = serializers.SerializerMethodField()
 
     class Meta:
         model = TestRun
@@ -148,8 +149,30 @@ class TestRunSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
             "projectId",
-            "testRunTestCases",
+            "testCases",
+            "stats",
         )
+
+    def get_stats(self, obj):
+        rows = obj.test_run_test_cases.all()
+        total_count = rows.count()
+        passed_count = rows.filter(status="PASSED").count()
+        failed_count = rows.filter(status="FAILED").count()
+        skipped_count = rows.filter(status="SKIPPED").count()
+        not_run_count = rows.filter(status="NOT_RUN").count()
+        def pct(v):
+            return 0 if total_count == 0 else round((v * 100.0) / total_count, 2)
+        return {
+            "total_count": total_count,
+            "passed_count": passed_count,
+            "failed_count": failed_count,
+            "skipped_count": skipped_count,
+            "not_run_count": not_run_count,
+            "passed_percentage": pct(passed_count),
+            "failed_percentage": pct(failed_count),
+            "skipped_percentage": pct(skipped_count),
+            "not_run_percentage": pct(not_run_count),
+        }
 
 
 class TestCaseReviewSerializer(serializers.ModelSerializer):

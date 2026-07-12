@@ -1,7 +1,7 @@
 import json
 
 from django.db.models import Q
-from django.http import JsonResponse
+from django.http import JsonResponse as DjangoJsonResponse
 from django.shortcuts import get_object_or_404
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
@@ -45,6 +45,26 @@ from .services import (
     normalize_status,
     run_ai_test_suite_analysis,
 )
+
+
+def _to_camel_case(value):
+    if isinstance(value, list):
+        return [_to_camel_case(v) for v in value]
+    if isinstance(value, dict):
+        transformed = {}
+        for key, val in value.items():
+            if isinstance(key, str):
+                parts = key.split("_")
+                camel_key = parts[0] + "".join(part[:1].upper() + part[1:] for part in parts[1:])
+            else:
+                camel_key = key
+            transformed[camel_key] = _to_camel_case(val)
+        return transformed
+    return value
+
+
+def JsonResponse(data, *args, **kwargs):
+    return DjangoJsonResponse(_to_camel_case(data), *args, **kwargs)
 
 
 def _json_body(request):
@@ -675,6 +695,24 @@ def test_run_detailed(request, id):
     if not test_run:
         return JsonResponse(build_api_response(False, "Тест-ран не найден"))
     return JsonResponse(build_api_response(True, testRun=TestRunSerializer(test_run).data))
+
+
+@require_http_methods(["GET"])
+def test_run_statistics(request, id):
+    rows = TestRunTestCase.objects.filter(test_run_id=id)
+    passed = rows.filter(status=TestRunTestCase.TestCaseStatus.PASSED).count()
+    failed = rows.filter(status=TestRunTestCase.TestCaseStatus.FAILED).count()
+    skipped = rows.filter(status=TestRunTestCase.TestCaseStatus.SKIPPED).count()
+    not_run = rows.filter(status=TestRunTestCase.TestCaseStatus.NOT_RUN).count()
+    return JsonResponse(
+        build_api_response(
+            True,
+            passed=passed,
+            failed=failed,
+            skipped=skipped,
+            not_run=not_run,
+        )
+    )
 
 
 @csrf_exempt
