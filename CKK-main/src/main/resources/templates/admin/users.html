@@ -374,7 +374,7 @@
                 <div class="stats-icon">
                     <i class="bi bi-people-fill"></i>
                 </div>
-                <div class="stats-number" th:text="${totalUsers}">0</div>
+                <div class="stats-number">{{ totalUsers }}</div>
                 <div class="stats-label">Всего пользователей</div>
                 <div class="stats-trend trend-up">
                     <i class="bi bi-arrow-up"></i>
@@ -387,7 +387,7 @@
                 <div class="stats-icon">
                     <i class="bi bi-person-check-fill"></i>
                 </div>
-                <div class="stats-number" th:text="${activeUsers}">0</div>
+                <div class="stats-number">{{ activeUsers }}</div>
                 <div class="stats-label">Активных пользователей</div>
                 <div class="stats-trend trend-up">
                     <i class="bi bi-activity"></i>
@@ -400,7 +400,7 @@
                 <div class="stats-icon">
                     <i class="bi bi-shield-check"></i>
                 </div>
-                <div class="stats-number" th:text="${adminUsers}">0</div>
+                <div class="stats-number">{{ adminUsers }}</div>
                 <div class="stats-label">Администраторов</div>
                 <div class="stats-trend">
                     <i class="bi bi-star-fill" style="color: #ffc107;"></i>
