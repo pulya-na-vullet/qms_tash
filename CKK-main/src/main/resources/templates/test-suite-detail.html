@@ -825,7 +825,7 @@
 
         const urlParams = new URLSearchParams(window.location.search);
         const testCaseIdFromUrl = urlParams.get('testCaseId');
-        if (testCaseIdFromUrl) {
+        if (testCaseIdFromUrl && testCaseIdFromUrl !== 'undefined' && testCaseIdFromUrl !== 'null') {
             setTimeout(() => {
                 loadTestCaseDetail(testCaseIdFromUrl);
                 const testCaseElement = document.getElementById(`test-case-item-${testCaseIdFromUrl}`);
@@ -836,9 +836,10 @@
             }, 500);
         }
 
+        // Always hydrate the left list from API; Thymeleaf placeholders are not usable in Django runtime.
+        loadTestCases(testSuiteData.id);
         initializeTestCaseSearch(testSuiteData.id);
         initializeKeyboardNavigation();
-        addTestCaseClickHandlers();
         loadProjectTags(testSuiteData.projectId);
         loadProjectUserStories(testSuiteData.projectId);
         initializeButtonHandlers();
@@ -1268,6 +1269,9 @@
 
     // Функция для обновления URL с ID тест-кейса
     function updateUrlWithTestCaseId(testCaseId) {
+        if (!testCaseId || testCaseId === 'undefined' || testCaseId === 'null') {
+            return;
+        }
         const newUrl = `${window.location.pathname}?testCaseId=${testCaseId}`;
         window.history.pushState({ testCaseId: testCaseId }, '', newUrl);
     }
@@ -1474,11 +1478,20 @@
     }
 
     // Добавление обработчиков кликов на тест-кейсы
+    function resolveTestCaseIdFromElement(element) {
+        if (!element) return null;
+        if (element.dataset && element.dataset.testCaseId) return element.dataset.testCaseId;
+        const idAttr = element.id || '';
+        const match = idAttr.match(/test-case-item-(\d+)/);
+        return match ? match[1] : null;
+    }
+
     function addTestCaseClickHandlers() {
         const testCases = document.querySelectorAll('.test-case-item');
         testCases.forEach(testCase => {
             testCase.addEventListener('click', function(e) {
-                const testCaseId = this.dataset.testCaseId;
+                const testCaseId = resolveTestCaseIdFromElement(this);
+                if (!testCaseId) return;
                 loadTestCaseDetail(testCaseId);
                 setActiveTestCase(this);
                 updateUrlWithTestCaseId(testCaseId);
@@ -1488,6 +1501,9 @@
 
     // Загрузка деталей тест-кейса
     function loadTestCaseDetail(testCaseId) {
+        if (!testCaseId || testCaseId === 'undefined' || testCaseId === 'null') {
+            return;
+        }
         fetch(`/api/test-cases/${testCaseId}`)
             .then(response => response.json())
             .then(data => {
@@ -1545,7 +1561,8 @@
         }
         const nextTestCase = testCases[newIndex];
         if (nextTestCase) {
-            const testCaseId = nextTestCase.dataset.testCaseId;
+            const testCaseId = resolveTestCaseIdFromElement(nextTestCase);
+            if (!testCaseId) return;
             loadTestCaseDetail(testCaseId);
             setActiveTestCase(nextTestCase);
             nextTestCase.focus();
@@ -1587,13 +1604,15 @@
         });
         document.getElementById('cloneTestCaseBtn').addEventListener('click', function() {
             if (currentActiveTestCase) {
-                const testCaseId = currentActiveTestCase.dataset.testCaseId;
+                const testCaseId = resolveTestCaseIdFromElement(currentActiveTestCase);
+                if (!testCaseId) return;
                 cloneTestCase(testCaseId);
             }
         });
         document.getElementById('deleteTestCaseBtn').addEventListener('click', function() {
             if (currentActiveTestCase) {
-                const testCaseId = currentActiveTestCase.dataset.testCaseId;
+                const testCaseId = resolveTestCaseIdFromElement(currentActiveTestCase);
+                if (!testCaseId) return;
                 deleteTestCase(testCaseId);
             }
         });
