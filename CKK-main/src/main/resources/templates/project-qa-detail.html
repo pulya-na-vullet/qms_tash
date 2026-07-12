@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title th:text="${project.name} + ' - QA Детали'">QA Детали проекта</title>
+    <title>{{ project.name }} - QA Детали</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
@@ -293,17 +293,17 @@
                     <div>
                         <h1 class="mb-2 text-white">
                             <i class="fas fa-clipboard-check me-3 text-white"></i>
-                            <span th:text="${project.name}" class="text-white">Название проекта</span>
+                            <span class="text-white">{{ project.name }}</span>
                         </h1>
                         <p class="mb-0 opacity-75 text-white">
                             <i class="fas fa-hashtag me-2 text-white"></i>
-                            ID: <span th:text="${project.id}" class="text-white">1</span>
+                            ID: <span class="text-white">{{ project.id }}</span>
                         </p>
                     </div>
                     <div class="text-end">
                         <div class="badge bg-light fs-6">
                             <i class="fas fa-calendar-alt me-2"></i>
-                            Создан: <span th:text="${#temporals.format(project.createdAt, 'dd.MM.yyyy HH:mm')}">01.01.2024 12:00</span>
+                            Создан: <span>{{ project.created_at|date:"d.m.Y H:i" }}</span>
                         </div>
                         <div class="badge bg-success fs-6 mt-2">
                             <i class="fas fa-vial me-2"></i>
@@ -362,21 +362,21 @@
                                 <div class="col-md-6">
                                     <div class="mb-3">
                                         <label class="form-label fw-bold">Название проекта:</label>
-                                        <p class="mb-0 fs-5" th:text="${project.name}">Название проекта</p>
+                                        <p class="mb-0 fs-5">{{ project.name }}</p>
                                     </div>
                                     <div class="mb-3">
                                         <label class="form-label fw-bold">ID проекта:</label>
-                                        <p class="mb-0" th:text="${project.id}">1</p>
+                                        <p class="mb-0">{{ project.id }}</p>
                                     </div>
                                 </div>
                                 <div class="col-md-6">
                                     <div class="mb-3">
                                         <label class="form-label fw-bold">Дата создания:</label>
-                                        <p class="mb-0" th:text="${#temporals.format(project.createdAt, 'dd.MM.yyyy HH:mm:ss')}">01.01.2024 12:00:00</p>
+                                        <p class="mb-0">{{ project.created_at|date:"d.m.Y H:i:s" }}</p>
                                     </div>
                                     <div class="mb-3">
                                         <label class="form-label fw-bold">Дата последнего обновления:</label>
-                                        <p class="mb-0" th:text="${#temporals.format(project.updatedAt, 'dd.MM.yyyy HH:mm:ss')}">01.01.2024 12:00:00</p>
+                                        <p class="mb-0">{{ project.updated_at|date:"d.m.Y H:i:s" }}</p>
                                     </div>
                                 </div>
                             </div>
@@ -394,7 +394,7 @@
                                 <i class="fas fa-vial me-2"></i>
                                 Тест-сьюты проекта
                             </h5>
-                            <span class="badge" id="testSuitesCount" th:text="${#lists.size(testSuites)} + ' тест-сьютов'">0 тест-сьютов</span>
+                            <span class="badge" id="testSuitesCount">{{ testSuites|length }} тест-сьютов</span>
                         </div>
                         <div class="card-body">
                             <!-- Форма создания тест-сьюта -->
@@ -421,42 +421,41 @@
 
                             <!-- Список тест-сьютов -->
                             <div id="testSuitesList">
-                                <div id="emptyTestSuites" th:class="${#lists.isEmpty(testSuites)} ? 'text-center py-4' : 'text-center py-4 d-none'">
+                                <div id="emptyTestSuites" class="text-center py-4{% if testSuites %} d-none{% endif %}">
                                     <i class="fas fa-inbox fa-2x text-muted mb-2"></i>
                                     <p class="text-muted mb-0">Тест-сьюты не найдены</p>
                                     <small class="text-muted">Создайте первый тест-сьют с помощью формы выше</small>
                                 </div>
 
                                 <div id="testSuitesContainer">
-                                    <div th:each="testSuite : ${testSuites}"
-                                         class="card test-suite-card"
-                                         th:id="'test-suite-card-' + ${testSuite.id}">
+                                    {% for testSuite in testSuites %}
+                                    <div class="card test-suite-card" id="test-suite-card-{{ testSuite.id }}">
                                         <a href="/test-suite/{{ testSuite.id }}" class="test-suite-link">
                                             <div class="card-body">
                                                 <div class="d-flex justify-content-between align-items-center">
                                                     <div>
                                                         <h5 class="card-title mb-1">
                                                             <i class="fas fa-vial me-2 text-info"></i>
-                                                            <span th:text="${testSuite.name}">Название тест-сьюта</span>
+                                                            <span>{{ testSuite.name }}</span>
                                                         </h5>
                                                         <small class="text-muted">
                                                             <i class="fas fa-hashtag me-1"></i>
-                                                            ID: <span th:text="${testSuite.id}">1</span> |
-                                                            Создан: <span th:text="${#temporals.format(testSuite.createdAt, 'dd.MM.yyyy HH:mm')}">01.01.2024 12:00</span>
+                                                            ID: <span>{{ testSuite.id }}</span> |
+                                                            Создан: <span>{{ testSuite.createdAt|date:"d.m.Y H:i" }}</span>
                                                         </small>
                                                     </div>
                                                     <div class="test-suite-actions">
                                                         <div class="btn-group btn-group-sm">
                                                             <button class="btn btn-outline-primary edit-test-suite-btn"
                                                                     type="button"
-                                                                    th:data-id="${testSuite.id}"
-                                                                    th:data-name="${testSuite.name}">
+                                                                    data-id="{{ testSuite.id }}"
+                                                                    data-name="{{ testSuite.name }}">
                                                                 <i class="fas fa-edit"></i>
                                                             </button>
                                                             <button class="btn btn-outline-danger ms-1 delete-test-suite-btn"
                                                                     type="button"
-                                                                    th:data-id="${testSuite.id}"
-                                                                    th:data-name="${testSuite.name}">
+                                                                    data-id="{{ testSuite.id }}"
+                                                                    data-name="{{ testSuite.name }}">
                                                                 <i class="fas fa-trash"></i>
                                                             </button>
                                                         </div>
@@ -465,6 +464,7 @@
                                             </div>
                                         </a>
                                     </div>
+                                    {% endfor %}
                                 </div>
                             </div>
                         </div>
