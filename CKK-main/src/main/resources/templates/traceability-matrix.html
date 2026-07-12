@@ -94,6 +94,25 @@
         .test-case-header .rotated-link:hover {
             text-decoration: underline;
         }
+        .popover.tc-preview-popover {
+            max-width: 520px;
+            width: 520px;
+        }
+        .popover.tc-preview-popover .popover-body {
+            max-height: 360px;
+            overflow-y: auto;
+            font-size: 0.875rem;
+        }
+        .tc-preview-section {
+            margin-bottom: 0.5rem;
+        }
+        .tc-preview-section:last-child {
+            margin-bottom: 0;
+        }
+        .tc-preview-muted {
+            color: #6c757d;
+            font-style: italic;
+        }
 
         .user-story-cell {
             padding: 10px;
@@ -347,13 +366,14 @@
     let availableUserStories = [];
     let isEditingInModal = false;
     let currentCommentSort = 'desc'; // 'desc' - новые сверху, 'asc' - старые сверху
+    const matrixPreviewCache = new Map();
 
     document.addEventListener('DOMContentLoaded', function () {
         const projectId = document.getElementById('projectData').dataset.projectId;
         updateBackButtonLink(projectId);
         loadProjectTags(projectId);
         loadProjectUserStories(projectId);
-        initializeMatrixTooltips();
+        initializeMatrixPreviews();
 
         document.addEventListener('click', function (e) {
             const link = e.target.closest('.rotated-link');
@@ -365,9 +385,98 @@
         });
     });
 
-    function initializeMatrixTooltips() {
-        document.querySelectorAll('.rotated-link[data-bs-toggle="tooltip"]').forEach(el => {
-            new bootstrap.Tooltip(el);
+    function buildPreviewHtml(tc) {
+        const tags = (tc.tags || []).length
+            ? tc.tags.map(tag => `<span class="badge me-1" style="background:${tag.color || '#6c757d'};color:#fff;">${tag.name}</span>`).join('')
+            : '<span class="tc-preview-muted">Теги отсутствуют</span>';
+        const userStories = (tc.userStories || []).length
+            ? tc.userStories.map(us => `<span class="badge bg-info me-1">${us.name}</span>`).join('')
+            : '<span class="tc-preview-muted">User Stories не привязаны</span>';
+        const steps = (tc.steps || []).length
+            ? tc.steps.map(step => `
+                <div><strong>${step.stepNumber}.</strong> ${step.action || ''}</div>
+                ${step.expectedResult ? `<div class="text-muted small mb-1">Ожидаемый: ${step.expectedResult}</div>` : ''}
+            `).join('')
+            : '<span class="tc-preview-muted">Шаги отсутствуют</span>';
+
+        return `
+            <div class="tc-preview-section">
+                <span class="badge bg-secondary me-1">${tc.status || 'DRAFT'}</span>
+                <span class="badge bg-warning text-dark">${tc.priority || 'MEDIUM'}</span>
+            </div>
+            <div class="tc-preview-section">
+                <strong>Предусловия:</strong><br>
+                ${tc.preconditions || '<span class="tc-preview-muted">Отсутствуют</span>'}
+            </div>
+            <div class="tc-preview-section">
+                <strong>Описание:</strong><br>
+                ${tc.description || '<span class="tc-preview-muted">Отсутствует</span>'}
+            </div>
+            <div class="tc-preview-section">
+                <strong>Шаги:</strong><br>
+                ${steps}
+            </div>
+            <div class="tc-preview-section">
+                <strong>Теги:</strong><br>
+                ${tags}
+            </div>
+            <div class="tc-preview-section">
+                <strong>User Stories:</strong><br>
+                ${userStories}
+            </div>
+        `;
+    }
+
+    function initializeMatrixPreviews() {
+        document.querySelectorAll('.rotated-link[data-bs-toggle="popover"]').forEach(el => {
+            const popover = new bootstrap.Popover(el, {
+                html: true,
+                trigger: 'hover focus',
+                placement: 'auto',
+                customClass: 'tc-preview-popover',
+                content: 'Загрузка...'
+            });
+
+            el.addEventListener('show.bs.popover', async function () {
+                const testCaseId = this.dataset.testCaseId;
+                if (!testCaseId) return;
+
+                if (matrixPreviewCache.has(testCaseId)) {
+                    popover.setContent({
+                        '.popover-header': `TC-${testCaseId}`,
+                        '.popover-body': matrixPreviewCache.get(testCaseId)
+                    });
+                    return;
+                }
+
+                popover.setContent({
+                    '.popover-header': `TC-${testCaseId}`,
+                    '.popover-body': 'Загрузка деталей тест-кейса...'
+                });
+
+                try {
+                    const response = await fetch(`/api/test-cases/${testCaseId}`);
+                    const data = await response.json();
+                    if (data.success && data.testCase) {
+                        const html = buildPreviewHtml(data.testCase);
+                        matrixPreviewCache.set(testCaseId, html);
+                        popover.setContent({
+                            '.popover-header': data.testCase.name || `TC-${testCaseId}`,
+                            '.popover-body': html
+                        });
+                    } else {
+                        popover.setContent({
+                            '.popover-header': `TC-${testCaseId}`,
+                            '.popover-body': 'Не удалось загрузить детали тест-кейса.'
+                        });
+                    }
+                } catch (_) {
+                    popover.setContent({
+                        '.popover-header': `TC-${testCaseId}`,
+                        '.popover-body': 'Ошибка загрузки деталей тест-кейса.'
+                    });
+                }
+            });
         });
     }
 

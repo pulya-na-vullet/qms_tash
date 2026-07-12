@@ -43,13 +43,12 @@ def generate_and_store_matrix(project_id: int) -> TraceabilityMatrix:
     html.append("<thead><tr><th class=\"user-story-header\">User Story \\ Test Case</th>")
     for tc in test_cases:
         safe_name = escape(tc.name or "", quote=True)
-        safe_description = escape((tc.description or "Описание отсутствует"), quote=True)
         tc_link = f"/test-suite/{tc.test_suite_id}?testCaseId={tc.id}"
-        tooltip_html = f"<strong>TC-{tc.id}</strong><br>{safe_name}<br><small>{safe_description}</small>"
         html.append(
             f"<th class=\"test-case-header\"><a href=\"{tc_link}\" class=\"rotated-link\" "
-            f"data-test-case-id=\"{tc.id}\" data-bs-toggle=\"tooltip\" data-bs-html=\"true\" "
-            f"data-bs-title=\"{tooltip_html}\" title=\"{safe_name}\">TC-{tc.id}</a></th>"
+            f"data-test-case-id=\"{tc.id}\" data-bs-toggle=\"popover\" data-bs-trigger=\"hover focus\" "
+            f"data-bs-html=\"true\" data-bs-placement=\"auto\" data-bs-title=\"{safe_name}\" "
+            f"data-bs-content=\"Загрузка...\">TC-{tc.id}</a></th>"
         )
     html.append("</tr></thead><tbody>")
     for us in user_stories:
