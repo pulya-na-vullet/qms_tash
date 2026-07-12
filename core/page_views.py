@@ -86,11 +86,7 @@ def _ensure_demo_auth_users():
         ("tester", ROLE_TESTER, "Тестировщик"),
     )
     for username, role, full_name in mapping:
-        user, _ = DjangoUser.objects.get_or_create(username=username)
-        user.set_password(username)
-        user.is_active = True
-        user.save()
-        core_user, _ = CoreUser.objects.get_or_create(
+        core_user, core_created = CoreUser.objects.get_or_create(
             username=username,
             defaults={
                 "password": username,
@@ -99,22 +95,16 @@ def _ensure_demo_auth_users():
                 "enabled": True,
             },
         )
-        changed = False
-        if core_user.password != username:
-            core_user.password = username
-            changed = True
-        if core_user.full_name != full_name:
-            core_user.full_name = full_name
-            changed = True
-        if core_user.roles != [role]:
-            core_user.roles = [role]
-            changed = True
-        if not core_user.enabled:
-            core_user.enabled = True
-            core_user.deactivation_reason = None
-            changed = True
-        if changed:
+        if core_created:
             core_user.save()
+
+        user, _ = DjangoUser.objects.get_or_create(username=username)
+        user.set_password(username)
+        # IMPORTANT: keep auth status aligned with CoreUser.enabled so admin locks persist.
+        user.is_active = bool(core_user.enabled)
+        if not user.first_name:
+            user.first_name = full_name
+        user.save()
 
 
 @never_cache
