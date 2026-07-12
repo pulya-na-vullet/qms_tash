@@ -90,6 +90,32 @@
         .tc-ai-score-badge.low-score { background: #28a745; color: #fff; }
         .tc-ai-score-badge.medium-score { background: #ffc107; color: #212529; }
         .tc-ai-score-badge.high-score { background: #dc3545; color: #fff; }
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 0.75rem;
+        }
+        .metric-panel {
+            border: 1px solid #e9ecef;
+            border-radius: 10px;
+            padding: 0.75rem;
+            background: #f8f9fa;
+        }
+        .metric-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.2rem 0;
+            font-size: 0.92rem;
+        }
+        .metric-label {
+            color: #495057;
+        }
+        .metric-value {
+            font-weight: 700;
+            white-space: nowrap;
+        }
 
         .test-case-header .rotated-link {
             height: 1.1cm;
@@ -360,7 +386,7 @@
 
     <!-- Матрица -->
     <div class="row mb-3">
-        <div class="col-md-6 mb-2">
+        <div class="col-lg-4 col-md-6 mb-2">
             <div class="card">
                 <div class="card-body">
                     <h6 class="mb-2"><i class="fas fa-chart-pie me-2"></i>Покрытие матрицы</h6>
@@ -371,22 +397,46 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-6 mb-2">
+        <div class="col-lg-8 col-md-6 mb-2">
             <div class="card">
                 <div class="card-body">
                     <h6 class="mb-2"><i class="fas fa-traffic-light me-2"></i>Категории критичности US</h6>
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div><strong>Критически важных (8-10):</strong> {{ matrixMetrics.criticality.high_count }}</div>
-                            <div><strong>Средней важности (5-7):</strong> {{ matrixMetrics.criticality.medium_count }}</div>
-                            <div><strong>Низкой важности (1-4):</strong> {{ matrixMetrics.criticality.low_count }}</div>
-                            <div><strong>Всего US:</strong> {{ matrixMetrics.criticality.total_us }}</div>
+                    <div class="metrics-grid">
+                        <div class="metric-panel">
+                            <div class="metric-row">
+                                <span class="metric-label">Критически важных (8-10)</span>
+                                <span class="metric-value text-danger">{{ matrixMetrics.criticality.high_count }}</span>
+                            </div>
+                            <div class="metric-row">
+                                <span class="metric-label">Средней важности (5-7)</span>
+                                <span class="metric-value text-warning">{{ matrixMetrics.criticality.medium_count }}</span>
+                            </div>
+                            <div class="metric-row">
+                                <span class="metric-label">Низкой важности (1-4)</span>
+                                <span class="metric-value text-success">{{ matrixMetrics.criticality.low_count }}</span>
+                            </div>
+                            <div class="metric-row border-top mt-1 pt-2">
+                                <span class="metric-label">Всего US</span>
+                                <span class="metric-value">{{ matrixMetrics.criticality.total_us }}</span>
+                            </div>
                         </div>
-                        <div class="col-md-6 mt-2 mt-md-0">
-                            <div><strong>Критические покрыто/не покрыто:</strong> {{ matrixMetrics.criticality_coverage.high_covered }} / {{ matrixMetrics.criticality_coverage.high_uncovered }}</div>
-                            <div><strong>Средние покрыто/не покрыто:</strong> {{ matrixMetrics.criticality_coverage.medium_covered }} / {{ matrixMetrics.criticality_coverage.medium_uncovered }}</div>
-                            <div><strong>Низкие покрыто/не покрыто:</strong> {{ matrixMetrics.criticality_coverage.low_covered }} / {{ matrixMetrics.criticality_coverage.low_uncovered }}</div>
-                            <div><strong>ТК без привязки к US:</strong> {{ matrixMetrics.orphan_test_cases.count }}</div>
+                        <div class="metric-panel">
+                            <div class="metric-row">
+                                <span class="metric-label">Критические покрыто / не покрыто</span>
+                                <span class="metric-value">{{ matrixMetrics.criticality_coverage.high_covered }} / {{ matrixMetrics.criticality_coverage.high_uncovered }}</span>
+                            </div>
+                            <div class="metric-row">
+                                <span class="metric-label">Средние покрыто / не покрыто</span>
+                                <span class="metric-value">{{ matrixMetrics.criticality_coverage.medium_covered }} / {{ matrixMetrics.criticality_coverage.medium_uncovered }}</span>
+                            </div>
+                            <div class="metric-row">
+                                <span class="metric-label">Низкие покрыто / не покрыто</span>
+                                <span class="metric-value">{{ matrixMetrics.criticality_coverage.low_covered }} / {{ matrixMetrics.criticality_coverage.low_uncovered }}</span>
+                            </div>
+                            <div class="metric-row border-top mt-1 pt-2">
+                                <span class="metric-label">ТК без привязки к US</span>
+                                <span class="metric-value">{{ matrixMetrics.orphan_test_cases.count }}</span>
+                            </div>
                         </div>
                     </div>
                 </div>
