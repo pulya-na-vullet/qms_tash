@@ -146,7 +146,7 @@ def run_ai_test_suite_analysis(test_suite_id: int):
     summary = None
     if ai_settings:
         prompt = _build_test_suite_analysis_prompt(test_suite_id, list(test_cases))
-        summary = _request_yandex_completion(ai_settings, prompt, max_tokens=1200)
+        summary, _ = _request_yandex_completion(ai_settings, prompt, max_tokens=1200)
     if not summary:
         summary = f"Auto analysis: found {test_cases.count()} test cases in suite {test_suite_id}."
     analysis = AIAnalysis.objects.create(
@@ -163,9 +163,16 @@ def create_or_update_review(test_case_id: int):
         return None
     ai_settings = _get_enabled_yandex_settings()
     if ai_settings:
-        result = _request_yandex_completion(ai_settings, _build_test_case_review_prompt(test_case), max_tokens=1200)
+        result, error_message = _request_yandex_completion(
+            ai_settings,
+            _build_test_case_review_prompt(test_case),
+            max_tokens=1200,
+        )
         if not result:
-            result = "AI провайдер включен, но не удалось получить ответ. Проверьте настройки подключения."
+            result = (
+                "AI провайдер включен, но не удалось получить ответ. "
+                f"{error_message or 'Проверьте настройки подключения.'}"
+            )
     else:
         result = f"Auto review for test case {test_case_id}: name length={len(test_case.name or '')}"
     score = 50 + min(50, len((test_case.description or "")) // 10)
@@ -209,13 +216,13 @@ def test_ai_provider_connection():
         return build_api_response(False, "Настройки YandexGPT не найдены")
     if not settings.api_key or not settings.folder_id:
         return build_api_response(False, "Заполните API Key и Folder ID")
-    response_text = _request_yandex_completion(
+    response_text, error_message = _request_yandex_completion(
         settings,
         "Ответь ровно одной строкой: OK",
         max_tokens=20,
     )
     if not response_text:
-        return build_api_response(False, "Нет ответа от AI провайдера")
+        return build_api_response(False, error_message or "Нет ответа от AI провайдера")
     return build_api_response(True, "Подключение к YandexGPT успешно", response=response_text.strip())
 
 
@@ -228,41 +235,78 @@ def _get_enabled_yandex_settings():
     return settings
 
 
-def _request_yandex_completion(settings: AIProviderSettings, prompt: str, max_tokens: int = 1000) -> str | None:
+def _request_yandex_completion(settings: AIProviderSettings, prompt: str, max_tokens: int = 1000) -> tuple[str | None, str | None]:
     model_name = (settings.model or "yandexgpt").strip()
     endpoint_url = (settings.endpoint_url or "").strip() or "https://llm.api.cloud.yandex.net/foundationModels/v1/completion"
-    payload = {
-        "modelUri": f"gpt://{settings.folder_id}/{model_name}",
-        "completionOptions": {
-            "stream": False,
-            "temperature": 0.2,
-            "maxTokens": str(max_tokens),
-        },
-        "messages": [
-            {"role": "system", "text": "Ты эксперт по тестированию ПО. Отвечай на русском языке."},
-            {"role": "user", "text": prompt},
-        ],
-    }
-    try:
-        response = requests.post(
-            endpoint_url,
-            headers={
-                "Authorization": f"Api-Key {settings.api_key}",
-                "x-folder-id": settings.folder_id,
-                "Content-Type": "application/json",
-            },
-            json=payload,
-            timeout=30,
-        )
-        response.raise_for_status()
-        data = response.json()
-    except (requests.RequestException, ValueError):
-        return None
+    model_uri_candidates = [f"gpt://{settings.folder_id}/{model_name}"]
+    if "/" not in model_name:
+        model_uri_candidates.append(f"gpt://{settings.folder_id}/{model_name}/latest")
 
+    last_error = None
+    for model_uri in model_uri_candidates:
+        payload = {
+            "modelUri": model_uri,
+            "completionOptions": {
+                "stream": False,
+                "temperature": 0.2,
+                "maxTokens": str(max_tokens),
+            },
+            "messages": [
+                {"role": "system", "text": "Ты эксперт по тестированию ПО. Отвечай на русском языке."},
+                {"role": "user", "text": prompt},
+            ],
+        }
+        try:
+            response = requests.post(
+                endpoint_url,
+                headers={
+                    "Authorization": f"Api-Key {settings.api_key}",
+                    "x-folder-id": settings.folder_id,
+                    "Content-Type": "application/json",
+                },
+                json=payload,
+                timeout=30,
+            )
+            if response.status_code >= 400:
+                body_preview = (response.text or "")[:500]
+                last_error = (
+                    f"Ошибка AI провайдера ({response.status_code}) для modelUri={model_uri}. "
+                    f"Ответ: {body_preview or 'пустой ответ'}"
+                )
+                continue
+            data = response.json()
+        except requests.RequestException as exc:
+            last_error = f"Ошибка сети при запросе к AI провайдеру: {exc}"
+            continue
+        except ValueError:
+            last_error = "AI провайдер вернул некорректный JSON"
+            continue
+
+        text = _extract_yandex_text(data)
+        if text:
+            return text, None
+        last_error = (
+            f"AI провайдер вернул ответ без текста для modelUri={model_uri}. "
+            f"Проверьте model/folder/endpoint."
+        )
+
+    return None, last_error
+
+
+def _extract_yandex_text(data: dict) -> str | None:
     try:
-        return (data["result"]["alternatives"][0]["message"]["text"] or "").strip() or None
-    except (KeyError, IndexError, TypeError):
-        return None
+        text = (data.get("result") or {}).get("alternatives", [{}])[0].get("message", {}).get("text")
+        if text:
+            return text.strip()
+    except (AttributeError, IndexError, TypeError):
+        pass
+    try:
+        text = (data.get("result") or {}).get("alternatives", [{}])[0].get("text")
+        if text:
+            return text.strip()
+    except (AttributeError, IndexError, TypeError):
+        pass
+    return None
 
 
 def _build_test_case_review_prompt(test_case: TestCase) -> str:
