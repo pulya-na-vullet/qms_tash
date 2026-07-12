@@ -1,5 +1,6 @@
 from datetime import timedelta
 from html import escape
+import re
 
 import requests
 from django.db import transaction
@@ -34,6 +35,13 @@ def build_api_response(success: bool, message: str = "", **payload):
 def generate_and_store_matrix(project_id: int) -> TraceabilityMatrix:
     user_stories = UserStory.objects.filter(section__project_id=project_id).order_by("id")
     test_cases = TestCase.objects.filter(test_suite__project_id=project_id).order_by("id")
+    review_scores = {
+        row["test_case_id"]: row["overall_score"]
+        for row in TestCaseReview.objects.filter(test_case_id__in=test_cases.values_list("id", flat=True)).values(
+            "test_case_id",
+            "overall_score",
+        )
+    }
     links = set(
         TestCaseUserStory.objects.filter(
             test_case_id__in=test_cases.values_list("id", flat=True),
@@ -46,8 +54,17 @@ def generate_and_store_matrix(project_id: int) -> TraceabilityMatrix:
     for tc in test_cases:
         safe_name = escape(tc.name or "", quote=True)
         tc_link = f"/test-suite/{tc.test_suite_id}?testCaseId={tc.id}"
+        score = review_scores.get(tc.id)
+        if score is None:
+            score_badge = '<div class="tc-ai-score-badge no-score">AI: —</div>'
+        elif score <= 4:
+            score_badge = f'<div class="tc-ai-score-badge low-score">AI: {score}/10</div>'
+        elif score <= 7:
+            score_badge = f'<div class="tc-ai-score-badge medium-score">AI: {score}/10</div>'
+        else:
+            score_badge = f'<div class="tc-ai-score-badge high-score">AI: {score}/10</div>'
         html.append(
-            f"<th class=\"test-case-header\"><a href=\"{tc_link}\" class=\"rotated-link\" "
+            f"<th class=\"test-case-header\">{score_badge}<a href=\"{tc_link}\" class=\"rotated-link\" "
             f"data-test-case-id=\"{tc.id}\" data-bs-toggle=\"popover\" data-bs-trigger=\"hover focus\" "
             f"data-bs-html=\"true\" data-bs-placement=\"auto\" data-bs-title=\"{safe_name}\" "
             f"data-bs-content=\"Загрузка...\">TC-{tc.id}</a></th>"
@@ -173,9 +190,12 @@ def create_or_update_review(test_case_id: int):
                 "AI провайдер включен, но не удалось получить ответ. "
                 f"{error_message or 'Проверьте настройки подключения.'}"
             )
+        score = _extract_review_score(result)
+        if score is None:
+            score = _fallback_review_score(test_case)
     else:
         result = f"Auto review for test case {test_case_id}: name length={len(test_case.name or '')}"
-    score = 50 + min(50, len((test_case.description or "")) // 10)
+        score = _fallback_review_score(test_case)
     review, _ = TestCaseReview.objects.update_or_create(
         test_case_id=test_case_id,
         defaults={"review_result": result, "overall_score": score},
@@ -341,3 +361,38 @@ def _build_test_suite_analysis_prompt(test_suite_id: int, test_cases: list[TestC
         "Дай краткий вывод о полноте покрытия, рисках и приоритетах доработки.\n\n"
         f"Список тест-кейсов:\n{cases_text}"
     )
+
+
+def _extract_review_score(review_text: str | None) -> int | None:
+    if not review_text:
+        return None
+    normalized = review_text.replace(",", ".")
+    patterns = [
+        r"итоговая\s+оценка[^0-9]{0,20}(\d+(?:\.\d+)?)",
+        r"общая\s+оценка[^0-9]{0,20}(\d+(?:\.\d+)?)",
+        r"оценка\s+по\s+шкале\s*1\s*[–-]\s*10[^0-9]{0,20}(\d+(?:\.\d+)?)",
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, normalized, flags=re.IGNORECASE)
+        if not match:
+            continue
+        try:
+            value = float(match.group(1))
+        except ValueError:
+            continue
+        if 0 < value <= 10:
+            return int(round(value))
+    return None
+
+
+def _fallback_review_score(test_case: TestCase) -> int:
+    score = 1
+    if test_case.description:
+        score += 3
+    if test_case.preconditions:
+        score += 2
+    if test_case.steps.exists():
+        score += 3
+    if test_case.priority in {TestCase.Priority.HIGH, TestCase.Priority.CRITICAL}:
+        score += 1
+    return min(score, 10)

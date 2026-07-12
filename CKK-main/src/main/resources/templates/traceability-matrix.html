@@ -63,7 +63,7 @@
         }
 
         .test-case-header {
-            height: 1cm;
+            height: 2cm;
             width: fit-content !important;
             padding: 2px 5px;
             text-align: center;
@@ -73,12 +73,26 @@
             color: white !important;
             vertical-align: bottom;
             white-space: nowrap;
-            overflow: hidden;
+            overflow: visible;
             position: relative;
         }
+        .tc-ai-score-badge {
+            display: block;
+            font-size: 10px;
+            line-height: 1.2;
+            padding: 2px 4px;
+            border-radius: 8px;
+            margin: 0 auto 4px auto;
+            max-width: 56px;
+            white-space: normal;
+        }
+        .tc-ai-score-badge.no-score { background: #6c757d; color: #fff; }
+        .tc-ai-score-badge.low-score { background: #28a745; color: #fff; }
+        .tc-ai-score-badge.medium-score { background: #ffc107; color: #212529; }
+        .tc-ai-score-badge.high-score { background: #dc3545; color: #fff; }
 
         .test-case-header .rotated-link {
-            height: 1cm;
+            height: 1.1cm;
             display: block;
             transform: rotate(270deg);
             transform-origin: center;
