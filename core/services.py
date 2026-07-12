@@ -1,4 +1,5 @@
 from datetime import timedelta
+from html import escape
 
 from django.db import transaction
 from django.db.models import Prefetch
@@ -41,13 +42,18 @@ def generate_and_store_matrix(project_id: int) -> TraceabilityMatrix:
     html = ["<table class=\"traceability-table\">"]
     html.append("<thead><tr><th class=\"user-story-header\">User Story \\ Test Case</th>")
     for tc in test_cases:
-        safe_name = (tc.name or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
+        safe_name = escape(tc.name or "", quote=True)
+        safe_description = escape((tc.description or "Описание отсутствует"), quote=True)
+        tc_link = f"/test-suite/{tc.test_suite_id}?testCaseId={tc.id}"
+        tooltip_html = f"<strong>TC-{tc.id}</strong><br>{safe_name}<br><small>{safe_description}</small>"
         html.append(
-            f"<th class=\"test-case-header\"><a href=\"#\" class=\"rotated-link\" data-test-case-id=\"{tc.id}\" title=\"{safe_name}\">TC-{tc.id}</a></th>"
+            f"<th class=\"test-case-header\"><a href=\"{tc_link}\" class=\"rotated-link\" "
+            f"data-test-case-id=\"{tc.id}\" data-bs-toggle=\"tooltip\" data-bs-html=\"true\" "
+            f"data-bs-title=\"{tooltip_html}\" title=\"{safe_name}\">TC-{tc.id}</a></th>"
         )
     html.append("</tr></thead><tbody>")
     for us in user_stories:
-        us_name = (us.name or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
+        us_name = escape(us.name or "", quote=True)
         html.append(f"<tr class=\"user-story-row\"><td class=\"user-story-cell\" title=\"{us_name}\">{us_name}</td>")
         for tc in test_cases:
             if (tc.id, us.id) in links:

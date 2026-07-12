@@ -353,15 +353,23 @@
         updateBackButtonLink(projectId);
         loadProjectTags(projectId);
         loadProjectUserStories(projectId);
+        initializeMatrixTooltips();
 
         document.addEventListener('click', function (e) {
-            if (e.target.classList.contains('rotated-link')) {
+            const link = e.target.closest('.rotated-link');
+            if (link && link.dataset.openModal === 'true') {
                 e.preventDefault();
-                const testCaseId = e.target.dataset.testCaseId;
+                const testCaseId = link.dataset.testCaseId;
                 if (testCaseId) openTestCaseModal(testCaseId);
             }
         });
     });
+
+    function initializeMatrixTooltips() {
+        document.querySelectorAll('.rotated-link[data-bs-toggle="tooltip"]').forEach(el => {
+            new bootstrap.Tooltip(el);
+        });
+    }
 
     function updateBackButtonLink(projectId) {
         const userRole = document.body.dataset.userRole;
