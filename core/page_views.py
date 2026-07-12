@@ -8,6 +8,7 @@ from functools import wraps
 
 from .models import Project, Section, TestRun, TestSuite, TraceabilityMatrix, User as CoreUser
 from .serializers import TestRunSerializer, TestSuiteSerializer
+from .services import generate_and_store_matrix
 
 
 ROLE_ADMIN = "ADMIN"
@@ -188,13 +189,13 @@ def traceability_matrix_page(request, project_id):
     project = Project.objects.filter(id=project_id).first()
     if not project:
         return redirect("/project-qa")
-    matrix = TraceabilityMatrix.objects.filter(project_id=project_id).order_by("-created_at").first()
+    try:
+        matrix = generate_and_store_matrix(project_id)
+    except Exception:
+        # Fallback to latest stored matrix if regeneration fails for any reason.
+        matrix = TraceabilityMatrix.objects.filter(project_id=project_id).order_by("-created_at").first()
     matrix_html = matrix.matrix_html if matrix else ""
-    user_role = "UNKNOWN"
-    # Spring version derived this from authenticated authorities.
-    # Here we keep compatibility with template expectations.
-    if request.GET.get("role"):
-        user_role = request.GET["role"]
+    user_role = _resolve_user_role(request)
     return render(
         request,
         "traceability-matrix.html",

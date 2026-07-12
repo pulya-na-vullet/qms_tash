@@ -33,7 +33,6 @@ def generate_and_store_matrix(project_id: int) -> TraceabilityMatrix:
     test_cases = TestCase.objects.filter(test_suite__project_id=project_id).order_by("id")
     links = set(
         TestCaseUserStory.objects.filter(
-            project_id=project_id,
             test_case_id__in=test_cases.values_list("id", flat=True),
             user_story_id__in=user_stories.values_list("id", flat=True),
         ).values_list("test_case_id", "user_story_id")
