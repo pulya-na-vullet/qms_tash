@@ -53,7 +53,21 @@ def generate_and_store_matrix(project_id: int) -> TraceabilityMatrix:
     html.append("</tr></thead><tbody>")
     for us in user_stories:
         us_name = escape(us.name or "", quote=True)
-        html.append(f"<tr class=\"user-story-row\"><td class=\"user-story-cell\" title=\"{us_name}\">{us_name}</td>")
+        criticality = us.business_criticality
+        criticality_part = f" / {criticality}" if criticality is not None else ""
+        us_label = f"US {us.id}{criticality_part}"
+        if criticality is None:
+            us_cell_class = "user-story-cell"
+        elif criticality <= 4:
+            us_cell_class = "user-story-cell criticality-low"
+        elif criticality <= 7:
+            us_cell_class = "user-story-cell criticality-medium"
+        else:
+            us_cell_class = "user-story-cell criticality-high"
+        html.append(
+            f"<tr class=\"user-story-row\"><td class=\"{us_cell_class}\" title=\"{us_name}\">"
+            f"<strong>{us_label}</strong><br>{us_name}</td>"
+        )
         for tc in test_cases:
             if (tc.id, us.id) in links:
                 html.append("<td class=\"linked-cell\"><span class=\"linked-indicator\">✓</span></td>")
@@ -67,6 +81,41 @@ def generate_and_store_matrix(project_id: int) -> TraceabilityMatrix:
         defaults={"matrix_html": "".join(html), "created_at": timezone.now()},
     )
     return matrix
+
+
+def calculate_traceability_metrics(project_id: int):
+    user_stories = list(UserStory.objects.filter(section__project_id=project_id).only("id", "business_criticality"))
+    test_cases = TestCase.objects.filter(test_suite__project_id=project_id).values_list("id", flat=True)
+    links = set(
+        TestCaseUserStory.objects.filter(
+            test_case_id__in=test_cases,
+            user_story_id__in=[us.id for us in user_stories],
+        ).values_list("user_story_id", flat=True)
+    )
+
+    total_us = len(user_stories)
+    covered_us = sum(1 for us in user_stories if us.id in links)
+    uncovered_us = total_us - covered_us
+    coverage_percent = round((covered_us * 100.0) / total_us, 2) if total_us else 0.0
+
+    low_count = sum(1 for us in user_stories if us.business_criticality is not None and 1 <= us.business_criticality <= 4)
+    medium_count = sum(1 for us in user_stories if us.business_criticality is not None and 5 <= us.business_criticality <= 7)
+    high_count = sum(1 for us in user_stories if us.business_criticality is not None and 8 <= us.business_criticality <= 10)
+
+    return {
+        "coverage": {
+            "total_us": total_us,
+            "covered_us": covered_us,
+            "uncovered_us": uncovered_us,
+            "coverage_percent": coverage_percent,
+        },
+        "criticality": {
+            "low_count": low_count,
+            "medium_count": medium_count,
+            "high_count": high_count,
+            "total_us": total_us,
+        },
+    }
 
 
 def bulk_refresh_matrices():

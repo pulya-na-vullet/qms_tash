@@ -40,6 +40,7 @@ class Section(TimestampedModel):
 
 class UserStory(TimestampedModel):
     name = models.CharField(max_length=255)
+    business_criticality = models.IntegerField(null=True, blank=True)
     section = models.ForeignKey(
         Section,
         on_delete=models.CASCADE,

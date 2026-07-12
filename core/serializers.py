@@ -39,7 +39,7 @@ class UserStorySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = UserStory
-        fields = ("id", "name", "created_at", "updated_at", "sectionId")
+        fields = ("id", "name", "business_criticality", "created_at", "updated_at", "sectionId")
 
 
 class CommentSerializer(serializers.ModelSerializer):

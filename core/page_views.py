@@ -8,7 +8,7 @@ from functools import wraps
 
 from .models import Project, Section, TestRun, TestSuite, TraceabilityMatrix, User as CoreUser
 from .serializers import TestRunSerializer, TestSuiteSerializer
-from .services import generate_and_store_matrix
+from .services import calculate_traceability_metrics, generate_and_store_matrix
 
 
 ROLE_ADMIN = "ADMIN"
@@ -142,7 +142,14 @@ def section_detail_page(request, id):
     section = Section.objects.filter(id=id).first()
     if not section:
         return redirect("/")
-    return render(request, "section-detail.html", {"section": section})
+    return render(
+        request,
+        "section-detail.html",
+        {
+            "section": section,
+            "userRole": _resolve_user_role(request),
+        },
+    )
 
 
 @role_required(ROLE_ADMIN, ROLE_TESTER)
@@ -199,7 +206,12 @@ def traceability_matrix_page(request, project_id):
     return render(
         request,
         "traceability-matrix.html",
-        {"project": project, "matrixHtml": matrix_html, "userRole": user_role},
+        {
+            "project": project,
+            "matrixHtml": matrix_html,
+            "userRole": user_role,
+            "matrixMetrics": calculate_traceability_metrics(project_id),
+        },
     )
 
 

@@ -123,6 +123,15 @@
             z-index: 5;
             font-weight: 500;
         }
+        .user-story-cell.criticality-low {
+            background: #d1e7dd;
+        }
+        .user-story-cell.criticality-medium {
+            background: #fff3cd;
+        }
+        .user-story-cell.criticality-high {
+            background: #f8d7da;
+        }
 
         .linked-cell {
             padding: 10px;
@@ -309,6 +318,31 @@
     </div>
 
     <!-- Матрица -->
+    <div class="row mb-3">
+        <div class="col-md-6 mb-2">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="mb-2"><i class="fas fa-chart-pie me-2"></i>Покрытие матрицы</h6>
+                    <div><strong>Покрыто US:</strong> {{ matrixMetrics.coverage.covered_us }}</div>
+                    <div><strong>Не покрыто US:</strong> {{ matrixMetrics.coverage.uncovered_us }}</div>
+                    <div><strong>Всего US:</strong> {{ matrixMetrics.coverage.total_us }}</div>
+                    <div><strong>Покрытие:</strong> {{ matrixMetrics.coverage.coverage_percent }}%</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 mb-2">
+            <div class="card">
+                <div class="card-body">
+                    <h6 class="mb-2"><i class="fas fa-traffic-light me-2"></i>Категории критичности US</h6>
+                    <div><strong>Критически важных (8-10):</strong> {{ matrixMetrics.criticality.high_count }}</div>
+                    <div><strong>Средней важности (5-7):</strong> {{ matrixMetrics.criticality.medium_count }}</div>
+                    <div><strong>Низкой важности (1-4):</strong> {{ matrixMetrics.criticality.low_count }}</div>
+                    <div><strong>Всего US:</strong> {{ matrixMetrics.criticality.total_us }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="row">
         <div class="col-12">
             <div class="card matrix-card">

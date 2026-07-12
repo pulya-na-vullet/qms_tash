@@ -138,7 +138,7 @@
         }
     </style>
 </head>
-<body>
+<body data-user-role="{{ userRole }}">
 <div class="container py-4">
     <!-- Кнопка возврата -->
     <div class="row mb-4">
@@ -266,6 +266,15 @@
                                     Для добавления нажмите Enter или кнопку "Добавить"
                                 </div>
                             </div>
+                            <div class="user-story-input-group" id="businessCriticalityCreateWrapper" style="display:none; max-width:220px;">
+                                <label for="userStoryCriticality" class="form-label mb-1">Критичность (1-10, опц.)</label>
+                                <input type="number"
+                                       class="form-control"
+                                       id="userStoryCriticality"
+                                       min="1"
+                                       max="10"
+                                       placeholder="Например: 7">
+                            </div>
 
                             <!-- Кнопка добавления -->
                             <button type="button" class="btn btn-primary" onclick="createUserStory()">
@@ -375,6 +384,15 @@
                                class="form-control"
                                id="editUserStoryName"
                                required>
+                    </div>
+                    <div class="mb-3" id="businessCriticalityEditWrapper" style="display:none;">
+                        <label for="editUserStoryCriticality" class="form-label">Критичность бизнеса (1-10, опц.)</label>
+                        <input type="number"
+                               class="form-control"
+                               id="editUserStoryCriticality"
+                               min="1"
+                               max="10"
+                               placeholder="Оставьте пустым, если не задано">
                     </div>
                 </form>
             </div>
@@ -504,6 +522,15 @@
     let currentDeleteUserStoryId = null;
     let currentEditUserStoryId = null;
     let userStoriesFile = null;
+    const currentUserRole = document.body.dataset.userRole || '';
+    const isAdminRole = currentUserRole === 'ADMIN';
+
+    function getCriticalityBadgeClass(value) {
+        if (value >= 1 && value <= 4) return 'bg-success';
+        if (value >= 5 && value <= 7) return 'bg-warning text-dark';
+        if (value >= 8 && value <= 10) return 'bg-danger';
+        return 'bg-secondary';
+    }
 
     // Автоматическое изменение высоты textarea
     function autoResizeTextarea(textarea) {
@@ -525,6 +552,10 @@
         const sectionId = document.getElementById('sectionData').dataset.sectionId;
         console.log('Загрузка страницы, sectionId:', sectionId);
         loadUserStories(sectionId);
+        if (isAdminRole) {
+            document.getElementById('businessCriticalityCreateWrapper').style.display = 'block';
+            document.getElementById('businessCriticalityEditWrapper').style.display = 'block';
+        }
 
         // Инициализация обработчика файлов
         document.getElementById('userStoriesFile').addEventListener('change', function(e) {
@@ -577,6 +608,7 @@
                                     <h5 class="card-title mb-1">
                                         <i class="fas fa-book me-2 text-info"></i>
                                         ${userStory.name}
+                                        ${userStory.businessCriticality ? `<span class="badge ${getCriticalityBadgeClass(userStory.businessCriticality)} ms-2">US ${userStory.id} / ${userStory.businessCriticality}</span>` : ''}
                                     </h5>
                                     <small class="text-muted">
                                         <i class="fas fa-hashtag me-1"></i>
@@ -587,7 +619,7 @@
                                 <div class="user-story-actions">
                                     <div class="btn-group btn-group-sm">
                                         <button class="btn btn-outline-primary"
-                                                onclick="editUserStory(${userStory.id}, '${userStory.name.replace(/'/g, "\\'")}')"
+                                                onclick="editUserStory(${userStory.id}, '${userStory.name.replace(/'/g, "\\'")}', ${userStory.businessCriticality ?? 'null'})"
                                                 title="Редактировать">
                                             <i class="fas fa-edit"></i>
                                         </button>
@@ -614,6 +646,8 @@
         const sectionId = document.getElementById('sectionData').dataset.sectionId;
         const textarea = document.getElementById('userStoryName');
         const userStoryName = textarea.value.trim();
+        const criticalityInput = document.getElementById('userStoryCriticality');
+        const businessCriticalityRaw = criticalityInput ? criticalityInput.value.trim() : '';
 
         if (!userStoryName) {
             showMessage('Название user story не может быть пустым!', 'danger');
@@ -621,12 +655,17 @@
             return;
         }
 
+        const payload = { name: userStoryName };
+        if (isAdminRole && businessCriticalityRaw !== '') {
+            payload.businessCriticality = Number(businessCriticalityRaw);
+        }
+
         fetch(`/api/sections/${sectionId}/user-stories`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ name: userStoryName })
+            body: JSON.stringify(payload)
         })
             .then(response => response.json())
             .then(data => {
@@ -634,6 +673,7 @@
                     showMessage(data.message, 'success');
                     textarea.value = '';
                     textarea.style.height = '38px'; // Сброс высоты
+                    if (criticalityInput) criticalityInput.value = '';
                     textarea.focus(); // Возвращаем фокус на textarea
                     loadUserStories(sectionId);
                 } else {
@@ -785,10 +825,14 @@
     }
 
     // Редактирование user story
-    function editUserStory(id, name) {
+    function editUserStory(id, name, businessCriticality) {
         currentEditUserStoryId = id;
         document.getElementById('editUserStoryId').value = id;
         document.getElementById('editUserStoryName').value = name;
+        const criticalityInput = document.getElementById('editUserStoryCriticality');
+        if (criticalityInput) {
+            criticalityInput.value = businessCriticality ?? '';
+        }
 
         const modal = new bootstrap.Modal(document.getElementById('editUserStoryModal'));
         modal.show();
@@ -798,6 +842,8 @@
     document.getElementById('saveUserStoryBtn').addEventListener('click', function() {
         const userStoryId = document.getElementById('editUserStoryId').value;
         const newName = document.getElementById('editUserStoryName').value.trim();
+        const criticalityInput = document.getElementById('editUserStoryCriticality');
+        const businessCriticalityRaw = criticalityInput ? criticalityInput.value.trim() : '';
         const sectionId = document.getElementById('sectionData').dataset.sectionId;
 
         if (!newName) {
@@ -805,12 +851,17 @@
             return;
         }
 
+        const payload = { name: newName };
+        if (isAdminRole) {
+            payload.businessCriticality = businessCriticalityRaw === '' ? null : Number(businessCriticalityRaw);
+        }
+
         fetch(`/api/user-stories/${userStoryId}`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ name: newName })
+            body: JSON.stringify(payload)
         })
             .then(response => response.json())
             .then(data => {

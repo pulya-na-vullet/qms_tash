@@ -73,6 +73,26 @@ def _json_body(request):
     return json.loads(request.body.decode("utf-8"))
 
 
+def _is_admin_request(request):
+    if not getattr(request, "user", None) or not request.user.is_authenticated:
+        return False
+    core_user = User.objects.filter(username=request.user.username, enabled=True).first()
+    return bool(core_user and "ADMIN" in (core_user.roles or []))
+
+
+def _parse_business_criticality(payload):
+    raw_value = payload.get("businessCriticality", payload.get("business_criticality"))
+    if raw_value in (None, ""):
+        return None, None
+    try:
+        value = int(raw_value)
+    except (TypeError, ValueError):
+        return None, "Критичность бизнеса должна быть числом от 1 до 10"
+    if value < 1 or value > 10:
+        return None, "Критичность бизнеса должна быть в диапазоне от 1 до 10"
+    return value, None
+
+
 @require_http_methods(["GET"])
 def projects_list(request):
     return JsonResponse(ProjectSerializer(Project.objects.all(), many=True).data, safe=False)
@@ -449,7 +469,16 @@ def section_user_stories_create(request, section_id):
     name = (payload.get("name") or "").strip()
     if not name:
         return JsonResponse(build_api_response(False, "Название user story не может быть пустым!"))
-    story = UserStory.objects.create(section_id=section_id, name=name)
+    criticality, error = _parse_business_criticality(payload)
+    if error:
+        return JsonResponse(build_api_response(False, error))
+    if criticality is not None and not _is_admin_request(request):
+        return JsonResponse(build_api_response(False, "Только администратор может задавать критичность бизнеса"), status=403)
+    story = UserStory.objects.create(
+        section_id=section_id,
+        name=name,
+        business_criticality=criticality,
+    )
     return JsonResponse(build_api_response(True, "User story создана успешно!", userStory=UserStorySerializer(story).data))
 
 
@@ -484,6 +513,13 @@ def user_story_update(request, id):
     name = (payload.get("name") or "").strip()
     if not name:
         return JsonResponse(build_api_response(False, "Название user story не может быть пустым!"))
+    criticality, error = _parse_business_criticality(payload)
+    if error:
+        return JsonResponse(build_api_response(False, error))
+    if "businessCriticality" in payload or "business_criticality" in payload:
+        if not _is_admin_request(request):
+            return JsonResponse(build_api_response(False, "Только администратор может изменять критичность бизнеса"), status=403)
+        story.business_criticality = criticality
     story.name = name
     story.save()
     return JsonResponse(build_api_response(True, "User story обновлена успешно!", userStory=UserStorySerializer(story).data))
