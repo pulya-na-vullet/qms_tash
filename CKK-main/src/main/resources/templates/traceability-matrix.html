@@ -1,0 +1,915 @@
+<!-- src/main/resources/templates/traceability-matrix.html -->
+<!DOCTYPE html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Матрица трассируемости для <span th:text="${project.name}">Project</span></title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+    <style>
+        .matrix-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 15px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+        }
+
+        .matrix-card {
+            border-radius: 12px;
+            border: none;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+            transition: transform 0.3s ease;
+        }
+
+        .matrix-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .back-button {
+            /* transition: all 0.3s ease; */ /* Убрано */
+        }
+
+        .back-button:hover {
+            /* transform: translateX(-5px); */ /* Убрано */
+        }
+
+        /* === СТИЛИ МАТРИЦЫ === */
+        .matrix-wrapper {
+            overflow-x: auto;
+            padding: 15px;
+        }
+
+        .traceability-table {
+            table-layout: auto;
+            min-width: 40%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+
+        .user-story-header {
+            padding: 15px 10px;
+            text-align: center;
+            font-weight: 600;
+            border: 1px solid #dee2e6;
+            position: sticky;
+            left: 0;
+            z-index: 10;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+            color: white !important;
+        }
+
+        .test-case-header {
+            height: 1cm;
+            width: fit-content !important;
+            padding: 2px 5px;
+            text-align: center;
+            font-weight: 600;
+            border: 1px solid #dee2e6;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+            color: white !important;
+            vertical-align: bottom;
+            white-space: nowrap;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .test-case-header .rotated-link {
+            height: 1cm;
+            display: block;
+            transform: rotate(270deg);
+            transform-origin: center;
+            color: white !important;
+            text-decoration: none;
+            font-weight: 600;
+            cursor: pointer;
+            padding: 5px 0;
+            transition: color 0.2s ease;
+            font-size: 12px; /* уменьшаем размер шрифта */
+        }
+
+        .test-case-header .rotated-link:hover {
+            text-decoration: underline;
+        }
+
+        .user-story-cell {
+            padding: 10px;
+            border: 1px solid #dee2e6;
+            position: sticky;
+            left: 0;
+            background: white;
+            z-index: 5;
+            font-weight: 500;
+        }
+
+        .linked-cell {
+            padding: 10px;
+            border: 1px solid #dee2e6;
+            text-align: center;
+            background-color: #d4edda !important;
+        }
+
+        .linked-indicator {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            background-color: #28a745;
+            color: white;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 20px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .unlinked-cell {
+            padding: 10px;
+            border: 1px solid #dee2e6;
+            text-align: center;
+            background-color: #f8f9fa !important;
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 40px;
+            color: #6c757d;
+            font-size: 18px;
+        }
+
+        @media (max-width: 768px) {
+            .test-case-header {
+                padding: 50px 3px 3px 3px;
+                font-size: 12px;
+            }
+
+            .traceability-table {
+                font-size: 12px;
+            }
+        }
+
+        /* Стили для комментариев */
+        .comment-card {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            /* transition: background-color 0.2s ease; */ /* Убрано */
+        }
+
+        .comment-card:hover {
+            background-color: #e9ecef;
+        }
+
+        .comment-actions {
+            opacity: 0;
+            /* transition: opacity 0.2s ease; */ /* Убрано */
+            margin-top: 0.5rem;
+        }
+
+        .comment-card:hover .comment-actions {
+            opacity: 1;
+        }
+
+        .comment-actions .btn {
+            margin-right: 0.25rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .comment-input-group {
+            margin-bottom: 1rem;
+        }
+
+        .user-avatar {
+            font-size: 1.5rem;
+        }
+
+        .comment-content {
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        /* Стили для AI комментариев */
+        .ai-comment {
+            border-left: 4px solid #0dcaf0;
+            background-color: #f0f9ff;
+        }
+
+        .ai-comment:hover {
+            background-color: #e0f2fe;
+        }
+
+        /* Стили для сортировки комментариев */
+        .comments-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .sort-dropdown .btn {
+            padding: 0.25rem 0.75rem;
+            font-size: 0.875rem;
+        }
+
+        .sort-dropdown .dropdown-menu {
+            min-width: 180px;
+        }
+
+        .sort-option {
+            cursor: pointer;
+            padding: 0.5rem 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .sort-option:hover {
+            background-color: #f8f9fa;
+        }
+
+        .sort-option.active {
+            background-color: #e9ecef;
+            font-weight: 500;
+        }
+
+        .sort-option .check-icon {
+            color: #28a745;
+            margin-left: 0.5rem;
+        }
+
+        /* === ИСПРАВЛЕНИЕ: перенос User Stories в модальном окне === */
+        .user-stories-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.25rem;
+            min-height: 1.5em;
+            align-items: flex-start;
+            width: 100%; /* Ключевое изменение */
+        }
+
+        .user-stories-container .badge {
+            flex: 0 1 auto; /* Не растягивать, но позволить сжиматься */
+            word-wrap: break-word;
+            word-break: break-word;
+            white-space: normal; /* Разрешить перенос текста внутри бейджа */
+            max-width: 100%; /* Не выходить за пределы контейнера */
+        }
+    </style>
+</head>
+<body>
+<div class="container py-4">
+    <!-- Кнопка возврата -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <a th:href="@{'/projects/' + ${project.id}}" class="btn btn-secondary back-button" id="backToProjectBtn">
+                <i class="fas fa-arrow-left me-2"></i>
+                Вернуться к проекту
+            </a>
+        </div>
+    </div>
+
+    <!-- Заголовок -->
+    <div class="row">
+        <div class="col-12">
+            <div class="matrix-header">
+                <h1 class="mb-2">
+                    <i class="fas fa-table me-3"></i>
+                    Матрица трассируемости
+                </h1>
+                <p class="mb-0 opacity-75">
+                    Проект: <span th:text="${project.name}">Название проекта</span>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Матрица -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card matrix-card">
+                <div class="card-body">
+                    <div class="matrix-wrapper">
+                        <div th:if="${#strings.isEmpty(matrixHtml)}">
+                            <div class="no-data">
+                                <i class="fas fa-inbox fa-2x text-muted mb-2"></i>
+                                <p class="text-muted mb-0">Матрица трассируемости пока не сформирована</p>
+                                <small class="text-muted">Добавьте секции, user stories и тест-кейсы</small>
+                            </div>
+                        </div>
+                        <div th:if="${not #strings.isEmpty(matrixHtml)}" th:utext="${matrixHtml}"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно деталей тест-кейса -->
+<div class="modal fade" id="testCaseDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalTestCaseTitle">
+                    <i class="fas fa-vial me-2"></i>
+                    Детали тест-кейса
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="modalTestCaseContent">
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Загрузка...</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+                <button type="button" class="btn btn-primary" id="editInModalBtn">Редактировать</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Скрытое поле для projectId -->
+<div id="projectData" th:data-project-id="${project.id}" style="display: none;"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    let currentTestCaseData = null;
+    let availableTags = [];
+    let availableUserStories = [];
+    let isEditingInModal = false;
+    let currentCommentSort = 'desc'; // 'desc' - новые сверху, 'asc' - старые сверху
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const projectId = document.getElementById('projectData').dataset.projectId;
+        updateBackButtonLink(projectId);
+        loadProjectTags(projectId);
+        loadProjectUserStories(projectId);
+
+        document.addEventListener('click', function (e) {
+            if (e.target.classList.contains('rotated-link')) {
+                e.preventDefault();
+                const testCaseId = e.target.dataset.testCaseId;
+                if (testCaseId) openTestCaseModal(testCaseId);
+            }
+        });
+    });
+
+    function updateBackButtonLink(projectId) {
+        const userRole = document.body.dataset.userRole;
+        const backButton = document.getElementById('backToProjectBtn');
+
+        if (userRole === 'ANALYST') {
+            backButton.href = `/projects/${projectId}`;
+        } else if (userRole === 'TESTER') {
+            backButton.href = `/project-qa/${projectId}`;
+        } else {
+            backButton.href = `/projects/${projectId}`;
+        }
+    }
+
+    function loadProjectTags(projectId) {
+        fetch(`/api/projects/${projectId}/tags`)
+            .then(r => r.json())
+            .then(tags => availableTags = tags)
+            .catch(err => console.error('Ошибка загрузки тегов:', err));
+    }
+
+    function loadProjectUserStories(projectId) {
+        fetch(`/api/projects/${projectId}/user-stories`)
+            .then(r => r.json())
+            .then(us => availableUserStories = us)
+            .catch(err => console.error('Ошибка загрузки US:', err));
+    }
+
+    function openTestCaseModal(testCaseId) {
+        const modal = new bootstrap.Modal(document.getElementById('testCaseDetailModal'));
+        const content = document.getElementById('modalTestCaseContent');
+        content.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary"></div></div>';
+
+        fetch(`/api/test-cases/${testCaseId}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.success && data.testCase) {
+                    currentTestCaseData = data.testCase;
+                    isEditingInModal = false;
+                    displayTestCaseInModal(data.testCase);
+                    document.getElementById('editInModalBtn').classList.remove('d-none');
+                    document.getElementById('editInModalBtn').textContent = 'Редактировать';
+                    modal.show();
+                } else {
+                    content.innerHTML = '<div class="alert alert-danger">Не удалось загрузить данные.</div>';
+                }
+            })
+            .catch(err => {
+                content.innerHTML = `<div class="alert alert-danger">Ошибка: ${err.message}</div>`;
+            });
+    }
+
+    function displayTestCaseInModal(testCase) {
+        document.getElementById('modalTestCaseTitle').innerHTML = `<i class="fas fa-vial me-2"></i>${testCase.name}`;
+
+        const tagsHtml = testCase.tags?.length
+            ? testCase.tags.map(t => `<span class="badge" style="background:${t.color};color:white">${t.name}</span>`).join(' ')
+            : '<em>Теги отсутствуют</em>';
+
+        const stepsHtml = testCase.steps?.length
+            ? testCase.steps.map(s => `
+                <div class="mb-2">
+                    <strong>${s.stepNumber}.</strong> ${s.action}
+                    ${s.expectedResult ? `<br><small class="text-muted">Ожидаемый: ${s.expectedResult}</small>` : ''}
+                </div>
+            `).join('')
+            : '<em>Шаги отсутствуют</em>';
+
+        // ✅ ИСПРАВЛЕНО: User Stories в контейнере с переносом (в режиме просмотра)
+        const usHtml = testCase.userStories?.length
+            ? `<div class="user-stories-container">${testCase.userStories.map(us => `<span class="badge bg-info">${us.name}</span>`).join('')}</div>`
+            : '<em>User Stories не привязаны</em>';
+
+        let commentsHtml = '';
+        if (testCase.comments && testCase.comments.length > 0) {
+            const sortedComments = sortComments([...testCase.comments], currentCommentSort);
+            commentsHtml = sortedComments.map(comment => generateCommentHtml(comment)).join('');
+        } else {
+            commentsHtml = '<em class="text-muted">Комментарии отсутствуют</em>';
+        }
+
+        document.getElementById('modalTestCaseContent').innerHTML = `
+            <div class="row">
+                <div class="col-md-6">
+                    <p><strong>Статус:</strong> <span class="badge bg-secondary">${testCase.status}</span></p>
+                    <p><strong>Приоритет:</strong> <span class="badge bg-warning text-dark">${testCase.priority}</span></p>
+                    <p><strong>Создан:</strong> ${new Date(testCase.createdAt).toLocaleString('ru-RU')}</p>
+                    <p><strong>Обновлён:</strong> ${new Date(testCase.updatedAt).toLocaleString('ru-RU')}</p>
+                </div>
+                <div class="col-md-6">
+                    <p><strong>Теги:</strong><br>${tagsHtml}</p>
+                </div>
+                <div class="col-12 mt-3">
+                    <h6><i class="fas fa-list-check me-2"></i>Предусловия</h6>
+                    <p>${testCase.preconditions || '<em>Отсутствуют</em>'}</p>
+                </div>
+                <div class="col-12">
+                    <h6><i class="fas fa-align-left me-2"></i>Описание</h6>
+                    <p>${testCase.description || '<em>Отсутствует</em>'}</p>
+                </div>
+                <div class="col-12">
+                    <h6><i class="fas fa-list-ol me-2"></i>Шаги</h6>
+                    <div>${stepsHtml}</div>
+                </div>
+                <div class="col-12">
+                    <h6><i class="fas fa-book me-2"></i>Связанные User Stories</h6>
+                    <div>${usHtml}</div>
+                </div>
+                <div class="col-12">
+                    <div class="comments-header">
+                        <h6 class="mb-0">
+                            <i class="fas fa-comments me-2 text-warning"></i>
+                            Комментарии
+                        </h6>
+                        <div class="sort-dropdown">
+                            <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" id="commentSortDropdownModal" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="fas fa-sort me-1"></i>
+                                ${currentCommentSort === 'desc' ? 'Новые сверху' : 'Старые сверху'}
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="commentSortDropdownModal">
+                                <li>
+                                    <a class="dropdown-item sort-option ${currentCommentSort === 'desc' ? 'active' : ''}" href="#" data-sort="desc">
+                                        Новые сверху
+                                        ${currentCommentSort === 'desc' ? '<i class="fas fa-check check-icon"></i>' : ''}
+                                    </a>
+                                </li>
+                                <li>
+                                    <a class="dropdown-item sort-option ${currentCommentSort === 'asc' ? 'active' : ''}" href="#" data-sort="asc">
+                                        Старые сверху
+                                        ${currentCommentSort === 'asc' ? '<i class="fas fa-check check-icon"></i>' : ''}
+                                    </a>
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="border rounded p-3">
+                        <div class="comment-input-group">
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="newCommentInput" placeholder="Добавить комментарий...">
+                                <button class="btn btn-outline-primary" type="button" id="addCommentBtn">Добавить</button>
+                            </div>
+                        </div>
+                        <div id="commentsList">
+                            ${commentsHtml}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        initializeCommentHandlers();
+        initializeCommentSortHandlersInModal();
+    }
+
+    function sortComments(comments, sortOrder) {
+        return comments.sort((a, b) => {
+            const dateA = new Date(a.createdAt);
+            const dateB = new Date(b.createdAt);
+            return sortOrder === 'desc' ? dateB - dateA : dateA - dateB;
+        });
+    }
+
+    function initializeCommentSortHandlersInModal() {
+        document.querySelectorAll('#testCaseDetailModal .sort-option').forEach(option => {
+            option.addEventListener('click', function (e) {
+                e.preventDefault();
+                const sortValue = this.dataset.sort;
+                if (sortValue !== currentCommentSort) {
+                    currentCommentSort = sortValue;
+                    if (currentTestCaseData) {
+                        displayTestCaseInModal(currentTestCaseData);
+                    }
+                }
+            });
+        });
+    }
+
+    function generateCommentHtml(comment) {
+        const isAI = comment.commentType === 'AI_GENERATED';
+        const authorName = comment.userFullName || comment.userUsername || 'Неизвестный пользователь';
+        const isEdited = comment.updatedAt && comment.updatedAt !== comment.createdAt;
+        const editInfo = isEdited ? ` <i class="fas fa-edit text-muted" title="Отредактировано: ${new Date(comment.updatedAt).toLocaleString('ru-RU')}"></i>` : '';
+        return `
+            <div class="comment-card ${isAI ? 'ai-comment' : ''}" data-comment-id="${comment.id}">
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                        <div class="d-flex align-items-center mb-2">
+                            <div class="user-avatar me-2">
+                                <i class="fas ${isAI ? 'fa-robot text-info' : 'fa-user-circle text-primary'}"></i>
+                            </div>
+                            <div>
+                                <strong class="d-block">${authorName}</strong>
+                                <small class="text-muted">
+                                    ${new Date(comment.createdAt).toLocaleString('ru-RU')}
+                                    ${editInfo}
+                                </small>
+                                ${isAI ? `<span class="badge bg-info ms-2">AI</span>` : ''}
+                            </div>
+                        </div>
+                        <p class="mb-1 comment-content">${comment.content}</p>
+                    </div>
+                    <div class="comment-actions">
+                        ${!isAI ? `
+                            <button class="btn btn-sm btn-outline-primary edit-comment-btn" title="Редактировать">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger delete-comment-btn" title="Удалить">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        ` : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    function initializeCommentHandlers() {
+        document.getElementById('addCommentBtn').addEventListener('click', addComment);
+        document.querySelectorAll('.edit-comment-btn').forEach(btn => btn.addEventListener('click', openEditCommentModal));
+        document.querySelectorAll('.delete-comment-btn').forEach(btn => btn.addEventListener('click', deleteComment));
+        document.getElementById('newCommentInput').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') {
+                addComment();
+            }
+        });
+    }
+
+    function addComment() {
+        const content = document.getElementById('newCommentInput').value.trim();
+        if (!content) {
+            showMessage('Содержание комментария не может быть пустым!', 'warning');
+            return;
+        }
+        const testCaseId = currentTestCaseData.id;
+
+        fetch('/api/comments', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({testCaseId, content})
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    return fetch(`/api/test-cases/${testCaseId}`).then(res => res.json());
+                } else {
+                    throw new Error(data.message);
+                }
+            })
+            .then(testCaseResponse => {
+                if (testCaseResponse.success && testCaseResponse.testCase) {
+                    currentTestCaseData = testCaseResponse.testCase;
+                    displayTestCaseInModal(currentTestCaseData);
+                    document.getElementById('newCommentInput').value = '';
+                    showMessage('Комментарий добавлен!', 'success');
+                } else {
+                    throw new Error(testCaseResponse.message || 'Не удалось загрузить тест-кейс');
+                }
+            })
+            .catch(err => {
+                console.error('Ошибка добавления комментария:', err);
+                showMessage('Ошибка: ' + (err.message || 'Неизвестная ошибка'), 'danger');
+            });
+    }
+
+    function openEditCommentModal(e) {
+        const commentCard = e.target.closest('.comment-card');
+        const commentId = parseInt(commentCard.dataset.commentId);
+        const comment = currentTestCaseData.comments.find(c => c.id === commentId);
+        if (comment) {
+            const newContent = prompt('Редактировать комментарий:', comment.content);
+            if (newContent !== null && newContent.trim() !== '') {
+                updateComment(commentId, newContent.trim());
+            }
+        }
+    }
+
+    function updateComment(commentId, content) {
+        const testCaseId = currentTestCaseData.id;
+        fetch(`/api/comments/${commentId}`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({content})
+        })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    return fetch(`/api/test-cases/${testCaseId}`).then(r => r.json());
+                } else {
+                    throw new Error(data.message);
+                }
+            })
+            .then(testCaseResponse => {
+                if (testCaseResponse.success && testCaseResponse.testCase) {
+                    currentTestCaseData = testCaseResponse.testCase;
+                    displayTestCaseInModal(currentTestCaseData);
+                    showMessage('Комментарий обновлён!', 'success');
+                } else {
+                    throw new Error(testCaseResponse.message || 'Не удалось загрузить тест-кейс');
+                }
+            })
+            .catch(err => {
+                console.error('Ошибка обновления комментария:', err);
+                showMessage('Ошибка: ' + (err.message || 'Неизвестная ошибка'), 'danger');
+            });
+    }
+
+    function deleteComment(e) {
+        const commentCard = e.target.closest('.comment-card');
+        const commentId = parseInt(commentCard.dataset.commentId);
+        const testCaseId = currentTestCaseData.id;
+
+        if (confirm('Вы уверены, что хотите удалить этот комментарий?')) {
+            fetch(`/api/comments/${commentId}`, {method: 'DELETE'})
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        return fetch(`/api/test-cases/${testCaseId}`).then(r => r.json());
+                    } else {
+                        throw new Error(data.message);
+                    }
+                })
+                .then(testCaseResponse => {
+                    if (testCaseResponse.success && testCaseResponse.testCase) {
+                        currentTestCaseData = testCaseResponse.testCase;
+                        displayTestCaseInModal(currentTestCaseData);
+                        showMessage('Комментарий удалён!', 'success');
+                    } else {
+                        throw new Error(testCaseResponse.message || 'Не удалось загрузить тест-кейс');
+                    }
+                })
+                .catch(err => {
+                    console.error('Ошибка удаления комментария:', err);
+                    showMessage('Ошибка: ' + (err.message || 'Неизвестная ошибка'), 'danger');
+                });
+        }
+    }
+
+    document.getElementById('editInModalBtn').addEventListener('click', function (e) {
+        e.preventDefault();
+        if (isEditingInModal) {
+            saveTestCaseFromModal();
+        } else {
+            if (currentTestCaseData) {
+                enableEditModeInModal(currentTestCaseData);
+                isEditingInModal = true;
+                this.textContent = 'Сохранить';
+            }
+        }
+    });
+
+    function enableEditModeInModal(testCase) {
+        const currentTagIds = new Set((testCase.tags || []).map(t => t.id));
+        const tagsHtml = availableTags.map(t => `
+            <div class="form-check">
+                <input class="form-check-input tag-checkbox" type="checkbox" id="tag-${t.id}" value="${t.id}" ${currentTagIds.has(t.id) ? 'checked' : ''}>
+                <label class="form-check-label" for="tag-${t.id}">
+                    <span class="badge" style="background:${t.color};color:white">${t.name}</span>
+                </label>
+            </div>
+        `).join('');
+
+        const currentUserStoryIds = new Set((testCase.userStories || []).map(us => us.id));
+        // ✅ ИСПРАВЛЕНО: User Stories в режиме редактирования тоже в контейнере
+        const usHtml = testCase.userStories?.length
+            ? `<div class="user-stories-container">${testCase.userStories.map(us => `<span class="badge bg-info">${us.name}</span>`).join('')}</div>`
+            : '<em>User Stories не привязаны</em>';
+
+        let commentsHtml = '';
+        if (testCase.comments && testCase.comments.length > 0) {
+            const sortedComments = sortComments([...testCase.comments], currentCommentSort);
+            commentsHtml = sortedComments.map(comment => generateCommentHtml(comment)).join('');
+        } else {
+            commentsHtml = '<em class="text-muted">Комментарии отсутствуют</em>';
+        }
+
+        document.getElementById('modalTestCaseContent').innerHTML = `
+            <div class="mb-3">
+                <label class="form-label">Название *</label>
+                <input type="text" class="form-control" id="editName" value="${testCase.name}" required>
+            </div>
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <label class="form-label">Статус</label>
+                    <select class="form-select" id="editStatus">
+                        <option value="DRAFT" ${testCase.status === 'DRAFT' ? 'selected' : ''}>Draft</option>
+                        <option value="REVIEW" ${testCase.status === 'REVIEW' ? 'selected' : ''}>Review</option>
+                        <option value="ACTIVE" ${testCase.status === 'ACTIVE' ? 'selected' : ''}>Active</option>
+                        <option value="ARCHIVE" ${testCase.status === 'ARCHIVE' ? 'selected' : ''}>Archive</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Приоритет</label>
+                    <select class="form-select" id="editPriority">
+                        <option value="LOW" ${testCase.priority === 'LOW' ? 'selected' : ''}>Low</option>
+                        <option value="MEDIUM" ${testCase.priority === 'MEDIUM' ? 'selected' : ''}>Medium</option>
+                        <option value="HIGH" ${testCase.priority === 'HIGH' ? 'selected' : ''}>High</option>
+                        <option value="CRITICAL" ${testCase.priority === 'CRITICAL' ? 'selected' : ''}>Critical</option>
+                    </select>
+                </div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Теги</label>
+                <div>${tagsHtml || '<em>Теги не найдены</em>'}</div>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Предусловия</label>
+                <textarea class="form-control" id="editPreconditions" rows="2">${testCase.preconditions || ''}</textarea>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Описание</label>
+                <textarea class="form-control" id="editDescription" rows="3">${testCase.description || ''}</textarea>
+            </div>
+            <div class="mb-3">
+                <label class="form-label">Связанные User Stories</label>
+                <div>${usHtml}</div>
+            </div>
+            <div class="mb-3">
+                <div class="comments-header">
+                    <label class="form-label mb-0"><strong>Комментарии</strong></label>
+                    <div class="sort-dropdown">
+                        <button class="btn btn-outline-secondary btn-sm dropdown-toggle" type="button" id="commentSortDropdownModalEdit" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-sort me-1"></i>
+                            ${currentCommentSort === 'desc' ? 'Новые сверху' : 'Старые сверху'}
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="commentSortDropdownModalEdit">
+                            <li>
+                                <a class="dropdown-item sort-option ${currentCommentSort === 'desc' ? 'active' : ''}" href="#" data-sort="desc">
+                                    Новые сверху
+                                    ${currentCommentSort === 'desc' ? '<i class="fas fa-check check-icon"></i>' : ''}
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item sort-option ${currentCommentSort === 'asc' ? 'active' : ''}" href="#" data-sort="asc">
+                                    Старые сверху
+                                    ${currentCommentSort === 'asc' ? '<i class="fas fa-check check-icon"></i>' : ''}
+                                </a>
+                            </li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="border rounded p-3">
+                    <div class="comment-input-group">
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="newCommentInput" placeholder="Добавить комментарий...">
+                            <button class="btn btn-outline-primary" type="button" id="addCommentBtn">Добавить</button>
+                        </div>
+                    </div>
+                    <div id="commentsList">
+                        ${commentsHtml}
+                    </div>
+                </div>
+            </div>
+        `;
+
+        initializeCommentHandlers();
+        initializeCommentSortHandlersInModal();
+    }
+
+    function saveTestCaseFromModal() {
+        const testCaseId = currentTestCaseData.id;
+        const updated = {
+            name: document.getElementById('editName').value.trim(),
+            description: document.getElementById('editDescription').value,
+            preconditions: document.getElementById('editPreconditions').value,
+            status: document.getElementById('editStatus').value,
+            priority: document.getElementById('editPriority').value
+        };
+
+        if (!updated.name) {
+            alert('Название не может быть пустым');
+            return;
+        }
+
+        fetch(`/api/test-cases/${testCaseId}`, {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(updated)
+        })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    return saveTestCaseTags(testCaseId)
+                        .then(() => saveTestCaseUserStories(testCaseId))
+                        .then(() => fetch(`/api/test-cases/${testCaseId}`).then(r => r.json()));
+                } else {
+                    throw new Error(data.message);
+                }
+            })
+            .then(finalData => {
+                if (finalData.success) {
+                    currentTestCaseData = finalData.testCase;
+                    displayTestCaseInModal(finalData.testCase);
+                    isEditingInModal = false;
+                    document.getElementById('editInModalBtn').textContent = 'Редактировать';
+                    showMessage('Сохранено!', 'success');
+                }
+            })
+            .catch(err => {
+                console.error('Ошибка:', err);
+                showMessage('Ошибка: ' + err.message, 'danger');
+            });
+    }
+
+    function saveTestCaseTags(testCaseId) {
+        return new Promise((resolve, reject) => {
+            const selected = Array.from(document.querySelectorAll('.tag-checkbox:checked')).map(cb => +cb.value);
+            fetch(`/api/test-cases/${testCaseId}`)
+                .then(r => r.json())
+                .then(data => {
+                    const current = (data.testCase.tags || []).map(t => t.id);
+                    const toAdd = selected.filter(id => !current.includes(id));
+                    const toRemove = current.filter(id => !selected.includes(id));
+
+                    const delPromises = toRemove.map(id => fetch(`/api/test-cases/${testCaseId}/tags/${id}`, {method: 'DELETE'}));
+                    return Promise.all(delPromises)
+                        .then(() => Promise.all(toAdd.map(id => fetch(`/api/test-cases/${testCaseId}/tags/${id}`, {method: 'POST'}))))
+                        .then(resolve);
+                })
+                .catch(reject);
+        });
+    }
+
+    function saveTestCaseUserStories(testCaseId) {
+        return new Promise((resolve, reject) => {
+            const selected = Array.from(document.querySelectorAll('.us-checkbox:checked')).map(cb => +cb.value);
+            fetch(`/api/test-cases/${testCaseId}`)
+                .then(r => r.json())
+                .then(data => {
+                    const current = (data.testCase.userStories || []).map(us => us.id);
+                    const toAdd = selected.filter(id => !current.includes(id));
+                    const toRemove = current.filter(id => !selected.includes(id));
+
+                    const delPromises = toRemove.map(id => fetch(`/api/test-cases/${testCaseId}/user-stories/${id}`, {method: 'DELETE'}));
+                    return Promise.all(delPromises)
+                        .then(() => Promise.all(toAdd.map(id => fetch(`/api/test-cases/${testCaseId}/user-stories/${id}`, {method: 'POST'}))))
+                        .then(resolve);
+                })
+                .catch(reject);
+        });
+    }
+
+    function showMessage(message, type) {
+        const alert = document.createElement('div');
+        alert.className = `alert alert-${type} position-fixed`;
+        alert.style = 'top: 20px; right: 20px; z-index: 10000; min-width: 300px;';
+        alert.innerHTML = `${message}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
+        document.body.appendChild(alert);
+        setTimeout(() => alert.remove(), 5000);
+    }
+</script>
+</body>
+</html>
