@@ -108,22 +108,35 @@ def generate_and_store_matrix(project_id: int) -> TraceabilityMatrix:
 
 def calculate_traceability_metrics(project_id: int):
     user_stories = list(UserStory.objects.filter(section__project_id=project_id).only("id", "business_criticality"))
-    test_cases = TestCase.objects.filter(test_suite__project_id=project_id).values_list("id", flat=True)
-    links = set(
+    test_case_ids = list(TestCase.objects.filter(test_suite__project_id=project_id).values_list("id", flat=True))
+    user_story_ids = [us.id for us in user_stories]
+    linked_pairs = list(
         TestCaseUserStory.objects.filter(
-            test_case_id__in=test_cases,
-            user_story_id__in=[us.id for us in user_stories],
-        ).values_list("user_story_id", flat=True)
+            test_case_id__in=test_case_ids,
+            user_story_id__in=user_story_ids,
+        ).values_list("test_case_id", "user_story_id")
     )
+    linked_user_story_ids = {pair[1] for pair in linked_pairs}
+    linked_test_case_ids = {pair[0] for pair in linked_pairs}
 
     total_us = len(user_stories)
-    covered_us = sum(1 for us in user_stories if us.id in links)
+    covered_us = sum(1 for us in user_stories if us.id in linked_user_story_ids)
     uncovered_us = total_us - covered_us
     coverage_percent = round((covered_us * 100.0) / total_us, 2) if total_us else 0.0
 
-    low_count = sum(1 for us in user_stories if us.business_criticality is not None and 1 <= us.business_criticality <= 4)
-    medium_count = sum(1 for us in user_stories if us.business_criticality is not None and 5 <= us.business_criticality <= 7)
-    high_count = sum(1 for us in user_stories if us.business_criticality is not None and 8 <= us.business_criticality <= 10)
+    low_stories = [us for us in user_stories if us.business_criticality is not None and 1 <= us.business_criticality <= 4]
+    medium_stories = [us for us in user_stories if us.business_criticality is not None and 5 <= us.business_criticality <= 7]
+    high_stories = [us for us in user_stories if us.business_criticality is not None and 8 <= us.business_criticality <= 10]
+
+    low_count = len(low_stories)
+    medium_count = len(medium_stories)
+    high_count = len(high_stories)
+
+    low_covered = sum(1 for us in low_stories if us.id in linked_user_story_ids)
+    medium_covered = sum(1 for us in medium_stories if us.id in linked_user_story_ids)
+    high_covered = sum(1 for us in high_stories if us.id in linked_user_story_ids)
+
+    orphan_test_cases_count = len(set(test_case_ids) - linked_test_case_ids)
 
     return {
         "coverage": {
@@ -137,6 +150,17 @@ def calculate_traceability_metrics(project_id: int):
             "medium_count": medium_count,
             "high_count": high_count,
             "total_us": total_us,
+        },
+        "criticality_coverage": {
+            "high_covered": high_covered,
+            "high_uncovered": high_count - high_covered,
+            "medium_covered": medium_covered,
+            "medium_uncovered": medium_count - medium_covered,
+            "low_covered": low_covered,
+            "low_uncovered": low_count - low_covered,
+        },
+        "orphan_test_cases": {
+            "count": orphan_test_cases_count,
         },
     }
 

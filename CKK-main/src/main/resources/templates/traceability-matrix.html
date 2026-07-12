@@ -375,10 +375,20 @@
             <div class="card">
                 <div class="card-body">
                     <h6 class="mb-2"><i class="fas fa-traffic-light me-2"></i>Категории критичности US</h6>
-                    <div><strong>Критически важных (8-10):</strong> {{ matrixMetrics.criticality.high_count }}</div>
-                    <div><strong>Средней важности (5-7):</strong> {{ matrixMetrics.criticality.medium_count }}</div>
-                    <div><strong>Низкой важности (1-4):</strong> {{ matrixMetrics.criticality.low_count }}</div>
-                    <div><strong>Всего US:</strong> {{ matrixMetrics.criticality.total_us }}</div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div><strong>Критически важных (8-10):</strong> {{ matrixMetrics.criticality.high_count }}</div>
+                            <div><strong>Средней важности (5-7):</strong> {{ matrixMetrics.criticality.medium_count }}</div>
+                            <div><strong>Низкой важности (1-4):</strong> {{ matrixMetrics.criticality.low_count }}</div>
+                            <div><strong>Всего US:</strong> {{ matrixMetrics.criticality.total_us }}</div>
+                        </div>
+                        <div class="col-md-6 mt-2 mt-md-0">
+                            <div><strong>Критические покрыто/не покрыто:</strong> {{ matrixMetrics.criticality_coverage.high_covered }} / {{ matrixMetrics.criticality_coverage.high_uncovered }}</div>
+                            <div><strong>Средние покрыто/не покрыто:</strong> {{ matrixMetrics.criticality_coverage.medium_covered }} / {{ matrixMetrics.criticality_coverage.medium_uncovered }}</div>
+                            <div><strong>Низкие покрыто/не покрыто:</strong> {{ matrixMetrics.criticality_coverage.low_covered }} / {{ matrixMetrics.criticality_coverage.low_uncovered }}</div>
+                            <div><strong>ТК без привязки к US:</strong> {{ matrixMetrics.orphan_test_cases.count }}</div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
