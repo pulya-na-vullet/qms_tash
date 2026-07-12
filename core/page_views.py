@@ -5,6 +5,8 @@ from django.contrib.auth.models import User as DjangoUser
 from django.db import connection
 from django.db.utils import OperationalError, ProgrammingError
 from django.shortcuts import get_object_or_404, redirect, render
+from django.views.decorators.cache import never_cache
+from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_POST
 from functools import wraps
 
@@ -106,6 +108,8 @@ def _ensure_demo_auth_users():
             core_user.save()
 
 
+@never_cache
+@ensure_csrf_cookie
 def login_page(request):
     _ensure_demo_auth_users()
 
