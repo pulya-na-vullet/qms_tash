@@ -1,706 +1,407 @@
 <!DOCTYPE html>
-<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title th:text="${testRun.title}">Детали тест-рана</title>
+    <title>Детали тест-рана</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
-        body {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-        .container {
-            background: rgba(255, 255, 255, 0.95);
-            border-radius: 20px;
-            margin-top: 2rem;
-            margin-bottom: 2rem;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
-            backdrop-filter: blur(10px);
-            animation: fadeIn 0.8s ease-out;
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        .test-case-card {
-            border-radius: 15px;
-            border: none;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.08);
-            transition: all 0.3s ease;
-            margin-bottom: 1.5rem;
-            background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
-            overflow: hidden;
-        }
-        .test-case-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
-        }
-        .test-case-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 4px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        }
-        .status-select {
-            min-width: 150px;
-            border-radius: 10px;
-            border: 2px solid #e9ecef;
-            transition: all 0.3s ease;
-        }
-        .status-select:focus {
-            border-color: #667eea;
-            box-shadow: 0 0 0 0.25rem rgba(102, 126, 234, 0.25);
-        }
-        .progress {
-            height: 12px;
-            border-radius: 10px;
-            background-color: #e9ecef;
-            overflow: hidden;
-        }
-        .progress-bar {
-            transition: width 0.6s ease;
-        }
-        .comment-box {
-            max-height: 120px;
-            resize: vertical;
-            border-radius: 10px;
-            border: 2px solid #e9ecef;
-            transition: all 0.3s ease;
-        }
-        .comment-box:focus {
-            border-color: #667eea;
-            box-shadow: 0 0 0 0.25rem rgba(102, 126, 234, 0.25);
-        }
-        .btn-white {
-            background: white;
-            border: 2px solid #e9ecef;
-            border-radius: 12px;
-            font-weight: 600;
-            padding: 0.75rem 1.5rem;
-            transition: all 0.3s ease;
-            color: #495057;
-        }
-        .btn-white:hover {
-            background: #f8f9fa;
-            border-color: #667eea;
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-        }
-        .btn-outline-danger {
-            border-radius: 10px;
-            font-weight: 600;
-        }
-        .card {
-            border-radius: 15px;
-            border: none;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.08);
-        }
-        .card-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border-radius: 15px 15px 0 0 !important;
-            border: none;
-            padding: 1.25rem 1.5rem;
-        }
-        .card-header h5 {
-            margin: 0;
-            font-weight: 600;
-        }
-        .badge {
-            border-radius: 20px;
-            padding: 0.5rem 1rem;
-            font-weight: 600;
-            font-size: 0.8rem;
-        }
+        body { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .container { background: rgba(255,255,255,.95); border-radius: 20px; margin-top: 2rem; margin-bottom: 2rem; box-shadow: 0 20px 40px rgba(0,0,0,.1); backdrop-filter: blur(10px); }
+        .btn-white { background: white; border: 2px solid #e9ecef; border-radius: 12px; font-weight: 600; padding: .75rem 1.5rem; color: #495057; }
+        .card { border-radius: 15px; border: none; box-shadow: 0 5px 20px rgba(0,0,0,.08); }
+        .card-header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 15px 15px 0 0 !important; border: none; }
+        .test-case-card { border-radius: 15px; border: none; box-shadow: 0 5px 20px rgba(0,0,0,.08); margin-bottom: 1rem; }
+        .stats-card { background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%); border-radius: 15px; padding: 1rem; text-align: center; }
+        .stats-number { font-size: 2rem; font-weight: 700; }
+        .progress { height: 12px; border-radius: 10px; }
+        .steps-container { background: rgba(102,126,234,.05); border-radius: 10px; padding: .75rem; margin-top: .5rem; }
+        .step-item { padding: .35rem 0; border-bottom: 1px solid rgba(0,0,0,.06); }
+        .step-item:last-child { border-bottom: none; }
+        .status-updating { opacity: .7; pointer-events: none; }
         .bg-success { background: linear-gradient(135deg, #28a745, #20c997) !important; }
         .bg-danger { background: linear-gradient(135deg, #dc3545, #fd7e14) !important; }
         .bg-warning { background: linear-gradient(135deg, #ffc107, #fd7e14) !important; }
         .bg-secondary { background: linear-gradient(135deg, #6c757d, #495057) !important; }
-        .bg-primary { background: linear-gradient(135deg, #667eea, #764ba2) !important; }
-        .bg-info { background: linear-gradient(135deg, #17a2b8, #6f42c1) !important; }
-        .form-control {
-            border-radius: 10px;
-            border: 2px solid #e9ecef;
-            padding: 0.75rem 1rem;
-            transition: all 0.3s ease;
-        }
-        .form-control:focus {
-            border-color: #667eea;
-            box-shadow: 0 0 0 0.25rem rgba(102, 126, 234, 0.25);
-            transform: translateY(-1px);
-        }
-        .form-select {
-            border-radius: 10px;
-            border: 2px solid #e9ecef;
-            padding: 0.75rem 1rem;
-            transition: all 0.3s ease;
-        }
-        .form-select:focus {
-            border-color: #667eea;
-            box-shadow: 0 0 0 0.25rem rgba(102, 126, 234, 0.25);
-        }
-        h1, h2, h3, h4, h5, h6 {
-            color: #2c3e50;
-            font-weight: 700;
-        }
-        .text-muted {
-            color: #6c757d !important;
-        }
-        .stats-card {
-            background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
-            border-radius: 15px;
-            padding: 1.5rem;
-            text-align: center;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.08);
-            transition: all 0.3s ease;
-        }
-        .stats-card:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 8px 25px rgba(0,0,0,0.12);
-        }
-        .stats-number {
-            font-size: 2.5rem;
-            font-weight: 700;
-            margin-bottom: 0.5rem;
-        }
-        .header-card {
-            background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
-            border-radius: 15px;
-            border: none;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.08);
-        }
-        .steps-container {
-            background: rgba(102, 126, 234, 0.05);
-            border-radius: 10px;
-            padding: 1rem;
-            margin-top: 0.5rem;
-        }
-        .step-item {
-            padding: 0.5rem 0;
-            border-bottom: 1px solid rgba(0,0,0,0.05);
-        }
-        .step-item:last-child {
-            border-bottom: none;
-        }
-        .status-updating {
-            opacity: 0.7;
-            pointer-events: none;
-        }
-        .update-indicator {
-            display: none;
-            font-size: 0.8rem;
-            color: #667eea;
-            margin-top: 0.25rem;
-        }
-        .toast-container {
-            z-index: 1055;
-        }
-        .stats-updating {
-            animation: pulse 1.5s infinite;
-        }
-        @keyframes pulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-            100% { transform: scale(1); }
-        }
     </style>
 </head>
 <body>
 <div class="container py-4">
-    <!-- Навигация -->
     <div class="row mb-4">
         <div class="col-12 d-flex justify-content-between align-items-center">
             <div>
-                <a href="/project/{{ testRun.projectId }}/test-runs"
-                   class="btn btn-white me-2">
-                    <i class="fas fa-arrow-left me-2"></i>Назад к тест-ранам
-                </a>
-                <a href="/project-qa/{{ testRun.projectId }}" class="btn btn-white me-2">
-                    <i class="fas fa-home me-2"></i>К проекту
-                </a>
+                <a id="backToRunsLink" href="/project-qa" class="btn btn-white me-2"><i class="fas fa-arrow-left me-2"></i>Назад к тест-ранам</a>
+                <a id="backToProjectLink" href="/project-qa" class="btn btn-white me-2"><i class="fas fa-home me-2"></i>К проекту</a>
             </div>
             <form action="/logout" method="post">
                 {% csrf_token %}
-                <button type="submit" class="btn btn-outline-danger btn-sm">
-                    <i class="fas fa-sign-out-alt me-1"></i> Выйти
-                </button>
+                <button type="submit" class="btn btn-outline-danger btn-sm"><i class="fas fa-sign-out-alt me-1"></i> Выйти</button>
             </form>
         </div>
     </div>
 
-    <!-- Заголовок тест-рана -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card header-card">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-start">
-                        <div class="flex-grow-1">
-                            <h1 class="h3 mb-3">
-                                <i class="fas fa-play-circle me-2 text-primary"></i>
-                                <span th:text="${testRun.title}"></span>
-                            </h1>
-                            <p class="text-muted mb-3" th:text="${testRun.description} ?: 'Описание отсутствует'"></p>
-                            <div class="d-flex flex-wrap gap-4">
-                                <small class="d-flex align-items-center">
-                                    <i class="fas fa-user me-2 text-primary"></i>
-                                    Исполнитель: <strong class="ms-1" th:text="${testRun.executorName}"></strong>
-                                </small>
-                                <small class="d-flex align-items-center">
-                                    <i class="fas fa-user-plus me-2 text-info"></i>
-                                    Создатель: <strong class="ms-1" th:text="${testRun.creatorName}"></strong>
-                                </small>
-                                <small class="d-flex align-items-center">
-                                    <i class="fas fa-calendar me-2 text-success"></i>
-                                    Создан: <strong class="ms-1" th:text="${#temporals.format(testRun.createdAt, 'dd.MM.yyyy HH:mm')}"></strong>
-                                </small>
-                            </div>
-                        </div>
-                        <div class="text-end">
-                            <div class="mb-3">
-                                <span class="badge fs-6" id="testRunStatusBadge"
-                                      th:classappend="'bg-' + ${T(project.util.ThymeleafUtils).getStatusBadgeClass(testRun.status)}">
-                                    <span th:text="${testRun.status.displayName}"></span>
-                                </span>
-                            </div>
-                            <select class="form-select status-select" id="testRunStatusSelect">
-                                <option th:each="status : ${T(project.model.TestRun$Status).values()}"
-                                        th:value="${status}"
-                                        th:text="${status.displayName}"
-                                        th:selected="${testRun.status == status}">
-                                </option>
-                            </select>
-                            <div class="update-indicator" id="testRunStatusIndicator">
-                                <i class="fas fa-spinner fa-spin me-1"></i>Обновление...
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Прогресс выполнения -->
     <div class="row mb-4">
         <div class="col-12">
             <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">
-                        <i class="fas fa-chart-line me-2"></i>
-                        Прогресс выполнения
-                    </h5>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-3 mb-3">
-                            <div class="stats-card" id="passedStats">
-                                <div class="stats-number text-success" id="passedCount" th:text="${testRun.testCases.?[status.name() == 'PASSED'].size()} ?: 0"></div>
-                                <small class="text-muted">Успешно</small>
-                            </div>
-                        </div>
-                        <div class="col-md-3 mb-3">
-                            <div class="stats-card" id="failedStats">
-                                <div class="stats-number text-danger" id="failedCount" th:text="${testRun.testCases.?[status.name() == 'FAILED'].size()} ?: 0"></div>
-                                <small class="text-muted">Провалено</small>
-                            </div>
-                        </div>
-                        <div class="col-md-3 mb-3">
-                            <div class="stats-card" id="skippedStats">
-                                <div class="stats-number text-warning" id="skippedCount" th:text="${testRun.testCases.?[status.name() == 'SKIPPED'].size()} ?: 0"></div>
-                                <small class="text-muted">Пропущено</small>
-                            </div>
-                        </div>
-                        <div class="col-md-3 mb-3">
-                            <div class="stats-card" id="notRunStats">
-                                <div class="stats-number text-secondary" id="notRunCount" th:text="${testRun.testCases.?[status.name() == 'NOT_RUN'].size()} ?: 0"></div>
-                                <small class="text-muted">Не выполнено</small>
-                            </div>
+                <div class="card-body d-flex justify-content-between align-items-start">
+                    <div>
+                        <h1 class="h3 mb-2"><i class="fas fa-play-circle me-2 text-primary"></i><span id="runTitle">Загрузка...</span></h1>
+                        <p class="text-muted mb-2" id="runDescription">Описание отсутствует</p>
+                        <div class="d-flex flex-wrap gap-3 small">
+                            <span><i class="fas fa-user me-1 text-primary"></i>Исполнитель: <strong id="runExecutor">—</strong></span>
+                            <span><i class="fas fa-user-plus me-1 text-info"></i>Создатель: <strong id="runCreator">—</strong></span>
+                            <span><i class="fas fa-calendar me-1 text-success"></i>Создан: <strong id="runCreatedAt">—</strong></span>
                         </div>
                     </div>
-                    <div class="progress mt-3">
-                        <div class="progress-bar bg-success" role="progressbar" id="progressPassed"
-                             th:style="'width: ' + ${T(project.util.ThymeleafUtils).getProgressBarWidth(
-                                 testRun.testCases.?[status.name() == 'PASSED'].size(),
-                                 testRun.testCases.size()
-                             )} + '%'"></div>
-                        <div class="progress-bar bg-danger" role="progressbar" id="progressFailed"
-                             th:style="'width: ' + ${T(project.util.ThymeleafUtils).getProgressBarWidth(
-                                 testRun.testCases.?[status.name() == 'FAILED'].size(),
-                                 testRun.testCases.size()
-                             )} + '%'"></div>
-                        <div class="progress-bar bg-warning" role="progressbar" id="progressSkipped"
-                             th:style="'width: ' + ${T(project.util.ThymeleafUtils).getProgressBarWidth(
-                                 testRun.testCases.?[status.name() == 'SKIPPED'].size(),
-                                 testRun.testCases.size()
-                             )} + '%'"></div>
+                    <div class="text-end">
+                        <div class="mb-2"><span id="testRunStatusBadge" class="badge bg-secondary">Не начат</span></div>
+                        <select class="form-select" id="testRunStatusSelect">
+                            <option value="NOT_STARTED">Не начат</option>
+                            <option value="IN_PROGRESS">В процессе</option>
+                            <option value="COMPLETED">Завершен</option>
+                        </select>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Список тест-кейсов -->
+    <div class="row mb-4">
+        <div class="col-md-3 mb-2"><div class="stats-card"><div class="stats-number text-success" id="passedCount">0</div><small>Успешно</small></div></div>
+        <div class="col-md-3 mb-2"><div class="stats-card"><div class="stats-number text-danger" id="failedCount">0</div><small>Провалено</small></div></div>
+        <div class="col-md-3 mb-2"><div class="stats-card"><div class="stats-number text-warning" id="skippedCount">0</div><small>Пропущено</small></div></div>
+        <div class="col-md-3 mb-2"><div class="stats-card"><div class="stats-number text-secondary" id="notRunCount">0</div><small>Не выполнено</small></div></div>
+        <div class="col-12">
+            <div class="progress mt-2">
+                <div class="progress-bar bg-success" id="progressPassed" role="progressbar" style="width:0%"></div>
+                <div class="progress-bar bg-danger" id="progressFailed" role="progressbar" style="width:0%"></div>
+                <div class="progress-bar bg-warning" id="progressSkipped" role="progressbar" style="width:0%"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-3">
+        <div class="col-md-4 mb-2"><input id="searchInput" class="form-control" placeholder="Поиск по имени/описанию/ID..."></div>
+        <div class="col-md-3 mb-2">
+            <select id="statusFilter" class="form-select">
+                <option value="ALL">Все статусы</option>
+                <option value="NOT_RUN">Не выполнено</option>
+                <option value="PASSED">Успешно</option>
+                <option value="FAILED">Провалено</option>
+                <option value="SKIPPED">Пропущено</option>
+            </select>
+        </div>
+        <div class="col-md-5 mb-2 d-flex gap-2">
+            <button id="markSelectedPassed" class="btn btn-outline-success btn-sm"><i class="fas fa-check me-1"></i>Отметить выбранные как Passed</button>
+            <button id="markSelectedFailed" class="btn btn-outline-danger btn-sm"><i class="fas fa-times me-1"></i>Отметить выбранные как Failed</button>
+        </div>
+    </div>
+
     <div class="row">
         <div class="col-12">
             <div class="card">
                 <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">
-                        <i class="fas fa-list-check me-2"></i>
-                        Тест-кейсы тест-рана
-                    </h5>
-                    <span class="badge bg-primary fs-6" id="totalTestCases" th:text="${testRun.testCases.size()} + ' тест-кейсов'"></span>
+                    <h5 class="mb-0"><i class="fas fa-list-check me-2"></i>Тест-кейсы тест-рана</h5>
+                    <span class="badge bg-primary" id="totalTestCases">0 тест-кейсов</span>
                 </div>
                 <div class="card-body">
-                    <div id="testCasesList">
-                        <div th:each="testRunCase : ${testRun.testCases}" class="card test-case-card" th:id="'testCase-' + ${testRunCase.testCase.id}">
-                            <div class="card-body">
-                                <div class="row">
-                                    <div class="col-md-8">
-                                        <h6 class="card-title mb-3">
-                                            <span th:text="'TC-' + ${testRunCase.testCase.id} + ': ' + ${testRunCase.testCase.name}"></span>
-                                            <!-- Бейдж статуса тест-кейса -->
-                                            <span class="badge ms-2 test-case-status-badge"
-                                                  th:id="'statusBadge-' + ${testRunCase.testCase.id}"
-                                                  th:classappend="'bg-' + ${T(project.util.ThymeleafUtils).getTestCaseStatusBadgeClass(testRunCase.status)}"
-                                                  th:text="${testRunCase.status.displayName}"></span>
-                                        </h6>
-                                        <p class="card-text text-muted small mb-3"
-                                           th:text="${testRunCase.testCase.description} ?: 'Описание отсутствует'"></p>
-                                        <div class="d-flex flex-wrap gap-3 small mb-3">
-                                            <span class="text-muted d-flex align-items-center">
-                                                <i class="fas fa-layer-group me-1 text-info"></i>
-                                                Приоритет:
-                                                <strong class="ms-1" th:text="${testRunCase.testCase.priority?.name() ?: 'Не указан'}"></strong>
-                                            </span>
-                                            <span class="text-muted d-flex align-items-center">
-                                                <i class="fas fa-calendar me-1 text-success"></i>
-                                                Создан: <strong class="ms-1" th:text="${#temporals.format(testRunCase.testCase.createdAt, 'dd.MM.yyyy')}"></strong>
-                                            </span>
-                                        </div>
-                                        <!-- Показываем прекондишены если есть -->
-                                        <div th:if="${testRunCase.testCase.preconditions}" class="mb-3">
-                                            <small class="fw-bold text-primary">Прекондишены:</small>
-                                            <small class="text-muted d-block mt-1" th:text="${testRunCase.testCase.preconditions}"></small>
-                                        </div>
-                                        <!-- Показываем шаги если есть -->
-                                        <div th:if="${not testRunCase.testCase.steps.empty}" class="mb-3">
-                                            <small class="fw-bold text-primary">Шаги выполнения:</small>
-                                            <div class="steps-container">
-                                                <div th:each="step : ${testRunCase.testCase.steps}" class="step-item">
-                                                    <div class="fw-semibold text-dark">
-                                                        <span th:text="${step.stepNumber} + '. ' + ${step.action}"></span>
-                                                    </div>
-                                                    <div th:if="${step.expectedResult}" class="text-muted small ms-3 mt-1">
-                                                        <i class="fas fa-arrow-right me-1 text-success"></i>
-                                                        Ожидаемый результат: <span th:text="${step.expectedResult}"></span>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <div class="mb-3">
-                                            <label class="form-label small fw-bold text-dark">Статус выполнения:</label>
-                                            <select class="form-select status-select test-case-status-select"
-                                                    th:id="'statusSelect-' + ${testRunCase.testCase.id}"
-                                                    th:data-test-run-id="${testRun.id}"
-                                                    th:data-test-case-id="${testRunCase.testCase.id}">
-                                                <option th:each="status : ${T(project.model.TestRunTestCase$TestCaseStatus).values()}"
-                                                        th:value="${status}"
-                                                        th:text="${status.displayName}"
-                                                        th:selected="${testRunCase.status == status}">
-                                                </option>
-                                            </select>
-                                            <div class="update-indicator" th:id="'statusIndicator-' + ${testRunCase.testCase.id}">
-                                                <i class="fas fa-spinner fa-spin me-1"></i>Обновление...
-                                            </div>
-                                        </div>
-                                        <div>
-                                            <label class="form-label small fw-bold text-dark">Комментарий:</label>
-                                            <textarea class="form-control comment-box test-case-comment"
-                                                      th:id="'comment-' + ${testRunCase.testCase.id}"
-                                                      placeholder="Введите комментарий к результату выполнения..."
-                                                      th:data-test-run-id="${testRun.id}"
-                                                      th:data-test-case-id="${testRunCase.testCase.id}"
-                                                      th:text="${testRunCase.comment}"></textarea>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                    <div id="testCasesList"></div>
+                    <div id="emptyCases" class="text-muted text-center py-4 d-none">Нет тест-кейсов по выбранному фильтру</div>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Toast для уведомлений -->
 <div class="toast-container position-fixed top-0 end-0 p-3">
-    <div id="successToast" class="toast" role="alert">
-        <div class="toast-header bg-success text-white">
-            <i class="fas fa-check-circle me-2"></i>
-            <strong class="me-auto">Успех</strong>
-            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
-        </div>
-        <div class="toast-body">
-            Статус успешно обновлен
-        </div>
-    </div>
-    <div id="errorToast" class="toast" role="alert">
-        <div class="toast-header bg-danger text-white">
-            <i class="fas fa-exclamation-circle me-2"></i>
-            <strong class="me-auto">Ошибка</strong>
-            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
-        </div>
-        <div class="toast-body">
-            Ошибка при обновлении статуса
-        </div>
-    </div>
+    <div id="successToast" class="toast" role="alert"><div class="toast-header bg-success text-white"><strong class="me-auto">Успех</strong><button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button></div><div class="toast-body">Сохранено</div></div>
+    <div id="errorToast" class="toast" role="alert"><div class="toast-header bg-danger text-white"><strong class="me-auto">Ошибка</strong><button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button></div><div class="toast-body">Ошибка</div></div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // Инициализация toast
-        const successToast = new bootstrap.Toast(document.getElementById('successToast'));
-        const errorToast = new bootstrap.Toast(document.getElementById('errorToast'));
+const TEST_CASE_STATUS_OPTIONS = [
+    ['NOT_RUN', 'Не выполнено'],
+    ['PASSED', 'Успешно'],
+    ['FAILED', 'Провалено'],
+    ['SKIPPED', 'Пропущено'],
+];
 
-        const testRunStatusSelect = document.getElementById('testRunStatusSelect');
-        if (testRunStatusSelect) {
-            testRunStatusSelect.addEventListener('change', function() {
-                updateTestRunStatus(this.value);
-            });
-        }
+let runId = null;
+let testRun = null;
+let commentTimers = new Map();
 
-        // Обработчики для изменения статуса тест-кейсов
-        document.querySelectorAll('.test-case-status-select').forEach(select => {
-            select.addEventListener('change', function() {
-                updateTestCaseStatus(this);
-            });
-        });
+function getRunId() {
+    const m = window.location.pathname.match(/\/test-run\/(\d+)/);
+    return m ? Number(m[1]) : null;
+}
 
-        // Обработчики для комментариев (сохранение при потере фокуса)
-        document.querySelectorAll('.test-case-comment').forEach(textarea => {
-            textarea.addEventListener('blur', function() {
-                updateTestCaseStatus(this);
-            });
+function statusClass(status) {
+    if (status === 'PASSED' || status === 'COMPLETED') return 'bg-success';
+    if (status === 'FAILED') return 'bg-danger';
+    if (status === 'SKIPPED' || status === 'IN_PROGRESS') return 'bg-warning';
+    return 'bg-secondary';
+}
+
+function statusName(status) {
+    const names = {
+        NOT_RUN: 'Не выполнено', PASSED: 'Успешно', FAILED: 'Провалено', SKIPPED: 'Пропущено',
+        NOT_STARTED: 'Не начат', IN_PROGRESS: 'В процессе', COMPLETED: 'Завершен',
+    };
+    return names[status] || status || 'Неизвестно';
+}
+
+function showToast(type, message) {
+    const id = type === 'error' ? 'errorToast' : 'successToast';
+    const el = document.getElementById(id);
+    el.querySelector('.toast-body').textContent = message;
+    bootstrap.Toast.getOrCreateInstance(el).show();
+}
+
+function formatDate(val) {
+    if (!val) return '—';
+    const dt = new Date(val);
+    return Number.isNaN(dt.getTime()) ? val : dt.toLocaleString('ru-RU');
+}
+
+function escapeHtml(value) {
+    return String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+async function loadRun() {
+    const resp = await fetch(`/api/test-runs/${runId}/detailed`);
+    const data = await resp.json();
+    if (!data.success || !data.testRun) throw new Error(data.message || 'Не удалось загрузить тест-ран');
+    testRun = data.testRun;
+    renderHeader();
+    renderStats();
+    renderCases();
+}
+
+function renderHeader() {
+    document.title = `${testRun.title} - Детали тест-рана`;
+    document.getElementById('runTitle').textContent = testRun.title || 'Без названия';
+    document.getElementById('runDescription').textContent = testRun.description || 'Описание отсутствует';
+    document.getElementById('runExecutor').textContent = testRun.executorName || '—';
+    document.getElementById('runCreator').textContent = testRun.creatorName || '—';
+    document.getElementById('runCreatedAt').textContent = formatDate(testRun.createdAt);
+
+    const statusBadge = document.getElementById('testRunStatusBadge');
+    statusBadge.className = `badge ${statusClass(testRun.status)}`;
+    statusBadge.textContent = statusName(testRun.status);
+    document.getElementById('testRunStatusSelect').value = testRun.status || 'NOT_STARTED';
+
+    const projectId = testRun.projectId;
+    document.getElementById('backToRunsLink').href = `/project/${projectId}/test-runs`;
+    document.getElementById('backToProjectLink').href = `/project-qa/${projectId}`;
+}
+
+function computeStats(cases) {
+    const stats = { passed: 0, failed: 0, skipped: 0, notRun: 0, total: cases.length };
+    for (const row of cases) {
+        if (row.status === 'PASSED') stats.passed++;
+        else if (row.status === 'FAILED') stats.failed++;
+        else if (row.status === 'SKIPPED') stats.skipped++;
+        else stats.notRun++;
+    }
+    return stats;
+}
+
+function renderStats() {
+    const stats = computeStats(testRun.testCases || []);
+    document.getElementById('passedCount').textContent = stats.passed;
+    document.getElementById('failedCount').textContent = stats.failed;
+    document.getElementById('skippedCount').textContent = stats.skipped;
+    document.getElementById('notRunCount').textContent = stats.notRun;
+    document.getElementById('totalTestCases').textContent = `${stats.total} тест-кейсов`;
+    const total = stats.total || 1;
+    document.getElementById('progressPassed').style.width = `${(stats.passed / total) * 100}%`;
+    document.getElementById('progressFailed').style.width = `${(stats.failed / total) * 100}%`;
+    document.getElementById('progressSkipped').style.width = `${(stats.skipped / total) * 100}%`;
+}
+
+function getFilteredCases() {
+    const term = (document.getElementById('searchInput').value || '').trim().toLowerCase();
+    const status = document.getElementById('statusFilter').value;
+    return (testRun.testCases || []).filter(row => {
+        const tc = row.testCase || {};
+        const hay = `tc-${tc.id || ''} ${tc.name || ''} ${tc.description || ''}`.toLowerCase();
+        if (term && !hay.includes(term)) return false;
+        if (status !== 'ALL' && row.status !== status) return false;
+        return true;
+    });
+}
+
+function renderCases() {
+    const rows = getFilteredCases();
+    const list = document.getElementById('testCasesList');
+    const empty = document.getElementById('emptyCases');
+    if (!rows.length) {
+        list.innerHTML = '';
+        empty.classList.remove('d-none');
+        return;
+    }
+    empty.classList.add('d-none');
+    list.innerHTML = rows.map(row => {
+        const tc = row.testCase || {};
+        const options = TEST_CASE_STATUS_OPTIONS.map(([value, name]) => `<option value="${value}" ${row.status === value ? 'selected' : ''}>${name}</option>`).join('');
+        const steps = (tc.steps || []).length ? `<div class="steps-container">${tc.steps.map(step => `<div class="step-item"><div><strong>${escapeHtml(step.stepNumber)}.</strong> ${escapeHtml(step.action)}</div>${step.expectedResult ? `<div class="small text-muted ms-3">Ожидаемый результат: ${escapeHtml(step.expectedResult)}</div>` : ''}</div>`).join('')}</div>` : '<small class="text-muted">Шаги не заданы</small>';
+        return `
+            <div class="card test-case-card" id="case-${tc.id}">
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-8">
+                            <div class="d-flex align-items-center mb-2">
+                                <input class="form-check-input me-2 case-selector" type="checkbox" value="${tc.id}">
+                                <h6 class="mb-0">TC-${tc.id}: ${escapeHtml(tc.name)}</h6>
+                                <span class="badge ms-2 ${statusClass(row.status)}" id="badge-${tc.id}">${statusName(row.status)}</span>
+                            </div>
+                            <p class="text-muted small mb-2">${escapeHtml(tc.description || 'Описание отсутствует')}</p>
+                            <div class="small mb-2">
+                                <span class="me-3"><i class="fas fa-layer-group me-1 text-info"></i>Приоритет: <strong>${escapeHtml(tc.priority || 'Не указан')}</strong></span>
+                                <span><i class="fas fa-calendar me-1 text-success"></i>Создан: <strong>${formatDate(tc.createdAt)}</strong></span>
+                            </div>
+                            ${tc.preconditions ? `<div class="small mb-2"><strong class="text-primary">Прекондишены:</strong> ${escapeHtml(tc.preconditions)}</div>` : ''}
+                            <div><strong class="small text-primary">Шаги выполнения:</strong>${steps}</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-bold">Статус выполнения:</label>
+                            <select class="form-select mb-2 case-status-select" data-test-case-id="${tc.id}">${options}</select>
+                            <div class="d-flex gap-1 mb-2">
+                                <button class="btn btn-outline-success btn-sm quick-status" data-status="PASSED" data-test-case-id="${tc.id}"><i class="fas fa-check"></i></button>
+                                <button class="btn btn-outline-danger btn-sm quick-status" data-status="FAILED" data-test-case-id="${tc.id}"><i class="fas fa-times"></i></button>
+                                <button class="btn btn-outline-warning btn-sm quick-status" data-status="SKIPPED" data-test-case-id="${tc.id}"><i class="fas fa-forward"></i></button>
+                            </div>
+                            <label class="form-label small fw-bold">Комментарий:</label>
+                            <textarea class="form-control" rows="4" id="comment-${tc.id}" data-test-case-id="${tc.id}" placeholder="Введите комментарий...">${escapeHtml(row.comment || '')}</textarea>
+                            <button class="btn btn-primary btn-sm mt-2 save-case" data-test-case-id="${tc.id}"><i class="fas fa-save me-1"></i>Сохранить</button>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+    }).join('');
+    attachCaseHandlers();
+}
+
+function findCaseRow(testCaseId) {
+    return (testRun.testCases || []).find(row => row.testCase && Number(row.testCase.id) === Number(testCaseId));
+}
+
+async function saveCase(testCaseId, status, comment, quiet = false) {
+    const row = findCaseRow(testCaseId);
+    if (!row) return;
+    const payload = { status: status || row.status, comment: comment !== undefined ? comment : (row.comment || '') };
+    const resp = await fetch(`/api/test-runs/${runId}/test-cases/${testCaseId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+    });
+    const data = await resp.json();
+    if (!data.success) throw new Error(data.message || 'Ошибка обновления тест-кейса');
+    row.status = payload.status;
+    row.comment = payload.comment;
+    const badge = document.getElementById(`badge-${testCaseId}`);
+    if (badge) {
+        badge.className = `badge ms-2 ${statusClass(row.status)}`;
+        badge.textContent = statusName(row.status);
+    }
+    renderStats();
+    if (!quiet) showToast('success', `TC-${testCaseId} обновлен`);
+}
+
+function attachCaseHandlers() {
+    document.querySelectorAll('.case-status-select').forEach(select => {
+        select.addEventListener('change', async (e) => {
+            const testCaseId = Number(e.target.dataset.testCaseId);
+            const comment = document.getElementById(`comment-${testCaseId}`)?.value || '';
+            try { await saveCase(testCaseId, e.target.value, comment); } catch (err) { showToast('error', err.message); }
         });
     });
 
-    function updateTestRunStatus(status) {
-        const indicator = document.getElementById('testRunStatusIndicator');
-        const select = document.getElementById('testRunStatusSelect');
-        const badge = document.getElementById('testRunStatusBadge');
-
-        // Показываем индикатор загрузки
-        indicator.style.display = 'block';
-        select.classList.add('status-updating');
-
-        fetch(`/api/test-runs/${getTestRunId()}/status`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ status: status })
-        })
-            .then(r => r.json())
-            .then(data => {
-                if (data.success) {
-                    // Обновляем бейдж
-                    updateStatusBadge(badge, status);
-                    showSuccessToast('Статус тест-рана обновлен');
-                } else {
-                    showErrorToast(data.message || 'Ошибка обновления статуса');
-                    // Возвращаем предыдущее значение
-                    select.value = getCurrentTestRunStatus();
-                }
-            })
-            .catch(() => {
-                showErrorToast('Ошибка обновления статуса тест-рана');
-                select.value = getCurrentTestRunStatus();
-            })
-            .finally(() => {
-                indicator.style.display = 'none';
-                select.classList.remove('status-updating');
-            });
-    }
-
-    function updateTestCaseStatus(element) {
-        const testRunId = element.dataset.testRunId;
-        const testCaseId = element.dataset.testCaseId;
-
-        const statusSelect = document.getElementById(`statusSelect-${testCaseId}`);
-        const commentTextarea = document.getElementById(`comment-${testCaseId}`);
-        const statusIndicator = document.getElementById(`statusIndicator-${testCaseId}`);
-        const statusBadge = document.getElementById(`statusBadge-${testCaseId}`);
-
-        const status = statusSelect ? statusSelect.value : null;
-        const comment = commentTextarea ? commentTextarea.value : '';
-
-        if (status) {
-            // Показываем индикатор загрузки
-            statusIndicator.style.display = 'block';
-            statusSelect.classList.add('status-updating');
-
-            fetch(`/api/test-runs/${testRunId}/test-cases/${testCaseId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    status: status,
-                    comment: comment
-                })
-            })
-                .then(r => r.json())
-                .then(data => {
-                    if (data.success) {
-                        // Обновляем бейдж статуса
-                        updateStatusBadge(statusBadge, status);
-                        // Обновляем статистику
-                        updateStatistics();
-                        showSuccessToast('Статус тест-кейса обновлен');
-                    } else {
-                        showErrorToast(data.message || 'Ошибка обновления статуса');
-                    }
-                })
-                .catch(() => {
-                    showErrorToast('Ошибка обновления статуса тест-кейса');
-                })
-                .finally(() => {
-                    statusIndicator.style.display = 'none';
-                    statusSelect.classList.remove('status-updating');
-                });
-        }
-    }
-
-    function updateStatusBadge(badge, status) {
-        // Удаляем все классы статусов
-        badge.classList.remove('bg-success', 'bg-danger', 'bg-warning', 'bg-secondary', 'bg-primary', 'bg-info');
-
-        // Добавляем соответствующий класс
-        const statusClass = getStatusBadgeClass(status);
-        badge.classList.add(statusClass);
-
-        // Обновляем текст
-        const statusText = getStatusDisplayName(status);
-        badge.textContent = statusText;
-    }
-
-    function updateStatistics() {
-        // Показываем анимацию обновления статистики
-        const statsCards = ['passedStats', 'failedStats', 'skippedStats', 'notRunStats'];
-        statsCards.forEach(cardId => {
-            const card = document.getElementById(cardId);
-            if (card) {
-                card.classList.add('stats-updating');
-            }
+    document.querySelectorAll('.save-case').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            const testCaseId = Number(e.currentTarget.dataset.testCaseId);
+            const status = document.querySelector(`.case-status-select[data-test-case-id="${testCaseId}"]`)?.value;
+            const comment = document.getElementById(`comment-${testCaseId}`)?.value || '';
+            try { await saveCase(testCaseId, status, comment); } catch (err) { showToast('error', err.message); }
         });
+    });
 
-        // Загружаем обновленную статистику
-        fetch(`/api/test-runs/${getTestRunId()}/statistics`)
-            .then(r => r.json())
-            .then(data => {
-                if (data.success) {
-                    // Обновляем счетчики
-                    document.getElementById('passedCount').textContent = data.passed || 0;
-                    document.getElementById('failedCount').textContent = data.failed || 0;
-                    document.getElementById('skippedCount').textContent = data.skipped || 0;
-                    document.getElementById('notRunCount').textContent = data.notRun || 0;
+    document.querySelectorAll('.quick-status').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            const testCaseId = Number(e.currentTarget.dataset.testCaseId);
+            const status = e.currentTarget.dataset.status;
+            const select = document.querySelector(`.case-status-select[data-test-case-id="${testCaseId}"]`);
+            if (select) select.value = status;
+            const comment = document.getElementById(`comment-${testCaseId}`)?.value || '';
+            try { await saveCase(testCaseId, status, comment); } catch (err) { showToast('error', err.message); }
+        });
+    });
 
-                    // Обновляем прогресс-бар
-                    updateProgressBar(data);
-                }
-            })
-            .catch(error => {
-                console.error('Error updating statistics:', error);
-            })
-            .finally(() => {
-                // Убираем анимацию
-                statsCards.forEach(cardId => {
-                    const card = document.getElementById(cardId);
-                    if (card) {
-                        card.classList.remove('stats-updating');
-                    }
-                });
-            });
+    document.querySelectorAll('textarea[data-test-case-id]').forEach(area => {
+        area.addEventListener('input', (e) => {
+            const testCaseId = Number(e.target.dataset.testCaseId);
+            if (commentTimers.has(testCaseId)) clearTimeout(commentTimers.get(testCaseId));
+            commentTimers.set(testCaseId, setTimeout(async () => {
+                const status = document.querySelector(`.case-status-select[data-test-case-id="${testCaseId}"]`)?.value;
+                try { await saveCase(testCaseId, status, e.target.value, true); } catch {}
+            }, 900));
+        });
+    });
+}
+
+async function updateRunStatus(status) {
+    const resp = await fetch(`/api/test-runs/${runId}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+    });
+    const data = await resp.json();
+    if (!data.success) throw new Error(data.message || 'Ошибка обновления статуса тест-рана');
+    testRun.status = status;
+    renderHeader();
+}
+
+function selectedCaseIds() {
+    return Array.from(document.querySelectorAll('.case-selector:checked')).map(cb => Number(cb.value));
+}
+
+async function bulkSetStatus(status) {
+    const ids = selectedCaseIds();
+    if (!ids.length) {
+        showToast('error', 'Выберите хотя бы один тест-кейс');
+        return;
+    }
+    for (const testCaseId of ids) {
+        const comment = document.getElementById(`comment-${testCaseId}`)?.value || '';
+        await saveCase(testCaseId, status, comment, true);
+    }
+    renderCases();
+    showToast('success', `Обновлено тест-кейсов: ${ids.length}`);
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+    runId = getRunId();
+    if (!runId) {
+        showToast('error', 'Некорректный ID тест-рана');
+        return;
+    }
+    try {
+        await loadRun();
+    } catch (err) {
+        showToast('error', err.message);
     }
 
-    function updateProgressBar(data) {
-        const total = data.passed + data.failed + data.skipped + data.notRun;
-        if (total === 0) return;
-
-        const progressPassed = document.getElementById('progressPassed');
-        const progressFailed = document.getElementById('progressFailed');
-        const progressSkipped = document.getElementById('progressSkipped');
-
-        const passedWidth = (data.passed / total) * 100;
-        const failedWidth = (data.failed / total) * 100;
-        const skippedWidth = (data.skipped / total) * 100;
-
-        progressPassed.style.width = `${passedWidth}%`;
-        progressFailed.style.width = `${failedWidth}%`;
-        progressSkipped.style.width = `${skippedWidth}%`;
-    }
-
-    function getStatusBadgeClass(status) {
-        switch (status) {
-            case 'PASSED': return 'bg-success';
-            case 'FAILED': return 'bg-danger';
-            case 'SKIPPED': return 'bg-warning';
-            case 'NOT_RUN': return 'bg-secondary';
-            case 'NOT_STARTED': return 'bg-secondary';
-            case 'IN_PROGRESS': return 'bg-warning';
-            case 'COMPLETED': return 'bg-success';
-            default: return 'bg-secondary';
-        }
-    }
-
-    function getStatusDisplayName(status) {
-        const statusNames = {
-            'PASSED': 'Успешно',
-            'FAILED': 'Провалено',
-            'SKIPPED': 'Пропущено',
-            'NOT_RUN': 'Не выполнено',
-            'NOT_STARTED': 'Не начат',
-            'IN_PROGRESS': 'В процессе',
-            'COMPLETED': 'Завершен'
-        };
-        return statusNames[status] || status;
-    }
-
-    function getCurrentTestRunStatus() {
-        const badge = document.getElementById('testRunStatusBadge');
-        const badgeClass = Array.from(badge.classList).find(cls => cls.startsWith('bg-'));
-        if (!badgeClass) return 'NOT_STARTED';
-
-        switch (badgeClass) {
-            case 'bg-success': return 'COMPLETED';
-            case 'bg-warning': return 'IN_PROGRESS';
-            case 'bg-secondary': return 'NOT_STARTED';
-            default: return 'NOT_STARTED';
-        }
-    }
-
-    function showSuccessToast(message) {
-        const toast = document.getElementById('successToast');
-        toast.querySelector('.toast-body').textContent = message;
-        bootstrap.Toast.getOrCreateInstance(toast).show();
-    }
-
-    function showErrorToast(message) {
-        const toast = document.getElementById('errorToast');
-        toast.querySelector('.toast-body').textContent = message;
-        bootstrap.Toast.getOrCreateInstance(toast).show();
-    }
-
-    function getTestRunId() {
-        const path = window.location.pathname;
-        const match = path.match(/\/test-run\/(\d+)/);
-        return match ? match[1] : null;
-    }
+    document.getElementById('testRunStatusSelect').addEventListener('change', async (e) => {
+        try { await updateRunStatus(e.target.value); showToast('success', 'Статус тест-рана обновлен'); }
+        catch (err) { showToast('error', err.message); }
+    });
+    document.getElementById('searchInput').addEventListener('input', renderCases);
+    document.getElementById('statusFilter').addEventListener('change', renderCases);
+    document.getElementById('markSelectedPassed').addEventListener('click', () => bulkSetStatus('PASSED'));
+    document.getElementById('markSelectedFailed').addEventListener('click', () => bulkSetStatus('FAILED'));
+});
 </script>
 </body>
 </html>
