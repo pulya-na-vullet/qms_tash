@@ -1,4 +1,5 @@
 from django.shortcuts import redirect, render
+from django.views.decorators.csrf import csrf_exempt
 
 from .models import Project, Section, TestRun, TestSuite, TraceabilityMatrix, User
 from .serializers import TestRunSerializer, TestSuiteSerializer
@@ -27,8 +28,9 @@ def login_page(request):
     return render(request, "login.html", {"logged_out": request.GET.get("logout") == "1"})
 
 
+@csrf_exempt
 def logout_page(request):
-    if request.method == "POST":
+    if request.method in {"POST", "GET"}:
         request.session.flush()
     return redirect("/login?logout=1")
 
