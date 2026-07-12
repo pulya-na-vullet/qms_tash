@@ -366,11 +366,49 @@ def _build_test_suite_analysis_prompt(test_suite_id: int, test_cases: list[TestC
 def _extract_review_score(review_text: str | None) -> int | None:
     if not review_text:
         return None
-    normalized = review_text.replace(",", ".")
+
+    # Normalize common markdown/noise artifacts and unicode dashes.
+    normalized = review_text
+    normalized = normalized.replace(",", ".")
+    normalized = normalized.replace("*", " ")
+    normalized = re.sub(r"[‐‑‒–—−]", "-", normalized)
+    normalized = re.sub(r"\s+", " ", normalized).strip()
+
+    candidate_lines = []
+    for raw_line in review_text.splitlines():
+        line = raw_line.replace("*", " ")
+        line = re.sub(r"[‐‑‒–—−]", "-", line)
+        compact = re.sub(r"\s+", " ", line).strip()
+        if compact:
+            candidate_lines.append(compact)
+
+    # First pass: line-based detection for "Итоговая/Общая оценка".
+    for line in candidate_lines:
+        lower = line.lower()
+        if "итоговая оценка" not in lower and "общая оценка" not in lower and "оценка по шкале" not in lower:
+            continue
+        numbers = re.findall(r"\d+(?:\.\d+)?", line)
+        # Often line contains "1-10" and then final score, e.g. "Итоговая ... 1-10: 6"
+        if not numbers:
+            continue
+        parsed = []
+        for token in numbers:
+            try:
+                parsed.append(float(token))
+            except ValueError:
+                continue
+        if not parsed:
+            continue
+        # Prefer the last value in score-like lines.
+        candidate = parsed[-1]
+        if 0 < candidate <= 10:
+            return int(round(candidate))
+
+    # Second pass: explicit patterns.
     patterns = [
-        r"итоговая\s+оценка[^0-9]{0,20}(\d+(?:\.\d+)?)",
-        r"общая\s+оценка[^0-9]{0,20}(\d+(?:\.\d+)?)",
-        r"оценка\s+по\s+шкале\s*1\s*[–-]\s*10[^0-9]{0,20}(\d+(?:\.\d+)?)",
+        r"(?:итоговая|общая)\s+оценка[^\n\r]{0,80}?[:=]\s*(\d+(?:\.\d+)?)",
+        r"оценка\s+по\s+шкале\s*1\s*-\s*10[^\n\r]{0,40}?[:=]\s*(\d+(?:\.\d+)?)",
+        r"(\d+(?:\.\d+)?)\s*/\s*10",
     ]
     for pattern in patterns:
         match = re.search(pattern, normalized, flags=re.IGNORECASE)
