@@ -302,6 +302,33 @@
             white-space: normal; /* Разрешить перенос текста внутри бейджа */
             max-width: 100%; /* Не выходить за пределы контейнера */
         }
+        .ai-quality-btn {
+            background: #ffffff;
+            color: #4b2f7f;
+            border: 2px solid #ffffff;
+            border-radius: 12px;
+            font-weight: 700;
+            padding: 0.6rem 1rem;
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.14);
+            transition: all 0.2s ease-in-out;
+        }
+        .ai-quality-btn:hover {
+            color: #3a2563;
+            background: #f3ecff;
+            border-color: #f3ecff;
+            transform: translateY(-1px);
+            box-shadow: 0 8px 18px rgba(0, 0, 0, 0.2);
+        }
+        .ai-quality-btn:focus {
+            color: #3a2563;
+            background: #f3ecff;
+            border-color: #f3ecff;
+            box-shadow: 0 0 0 0.2rem rgba(255, 255, 255, 0.4);
+        }
+        .ai-quality-btn:active {
+            transform: translateY(0);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
+        }
     </style>
 </head>
 <body data-user-role="{{ userRole }}" data-current-user-id="{{ currentUserId }}">
@@ -357,7 +384,7 @@
         </div>
         <div class="col-12 mb-2">
             <div class="d-flex justify-content-end">
-                <button class="btn btn-outline-primary" id="runAiQualityBtn">
+                <button class="btn ai-quality-btn" id="runAiQualityBtn">
                     <i class="fas fa-robot me-2"></i>ИИ-оценка тестовой модели
                 </button>
             </div>
