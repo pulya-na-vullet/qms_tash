@@ -96,6 +96,13 @@ def _parse_business_criticality(payload):
     return value, None
 
 
+def _resolve_comment_user_id(request):
+    if not getattr(request, "user", None) or not request.user.is_authenticated:
+        return None
+    core_user = User.objects.filter(username=request.user.username).first()
+    return core_user.id if core_user else None
+
+
 @require_http_methods(["GET"])
 def projects_list(request):
     return JsonResponse(ProjectSerializer(Project.objects.all(), many=True).data, safe=False)
@@ -592,10 +599,11 @@ def tag_delete(request, id):
 @require_http_methods(["POST"])
 def comments_create(request):
     payload = _json_body(request)
+    user_id = payload.get("userId") or _resolve_comment_user_id(request)
     comment = Comment.objects.create(
         test_case_id=payload.get("testCaseId"),
         content=payload.get("content") or "",
-        user_id=payload.get("userId"),
+        user_id=user_id,
         comment_type=Comment.CommentType.MANUAL,
     )
     return JsonResponse(build_api_response(True, "Комментарий добавлен", comment=CommentSerializer(comment).data))

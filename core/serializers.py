@@ -44,10 +44,23 @@ class UserStorySerializer(serializers.ModelSerializer):
 
 class CommentSerializer(serializers.ModelSerializer):
     userName = serializers.CharField(source="user.username", read_only=True)
+    userUsername = serializers.CharField(source="user.username", read_only=True)
+    userFullName = serializers.CharField(source="user.full_name", read_only=True)
 
     class Meta:
         model = Comment
-        fields = ("id", "content", "created_at", "updated_at", "test_case_id", "user_id", "userName", "comment_type")
+        fields = (
+            "id",
+            "content",
+            "created_at",
+            "updated_at",
+            "test_case_id",
+            "user_id",
+            "userName",
+            "userUsername",
+            "userFullName",
+            "comment_type",
+        )
 
 
 class TestCaseSerializer(serializers.ModelSerializer):
