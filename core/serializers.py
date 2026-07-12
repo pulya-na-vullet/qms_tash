@@ -139,10 +139,25 @@ class UserSerializer(serializers.ModelSerializer):
 class TestRunTestCaseSerializer(serializers.ModelSerializer):
     testCase = TestCaseSerializer(source="test_case", read_only=True)
     testRunId = serializers.IntegerField(source="test_run_id", read_only=True)
+    commentAuthorId = serializers.IntegerField(source="comment_author_id", read_only=True)
+    commentAuthorName = serializers.CharField(source="comment_author.full_name", read_only=True)
+    commentAuthorUsername = serializers.CharField(source="comment_author.username", read_only=True)
 
     class Meta:
         model = TestRunTestCase
-        fields = ("id", "testRunId", "testCase", "status", "comment", "created_at", "updated_at")
+        fields = (
+            "id",
+            "testRunId",
+            "testCase",
+            "status",
+            "comment",
+            "comment_updated_at",
+            "commentAuthorId",
+            "commentAuthorName",
+            "commentAuthorUsername",
+            "created_at",
+            "updated_at",
+        )
 
 
 class TestRunSerializer(serializers.ModelSerializer):

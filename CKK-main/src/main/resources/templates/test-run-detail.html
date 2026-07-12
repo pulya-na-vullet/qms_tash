@@ -118,6 +118,7 @@
     <div id="successToast" class="toast" role="alert"><div class="toast-header bg-success text-white"><strong class="me-auto">Успех</strong><button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button></div><div class="toast-body">Сохранено</div></div>
     <div id="errorToast" class="toast" role="alert"><div class="toast-header bg-danger text-white"><strong class="me-auto">Ошибка</strong><button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button></div><div class="toast-body">Ошибка</div></div>
 </div>
+<div id="viewerData" data-user-id="{{ currentUserId }}" data-role="{{ currentUserRole }}" style="display:none;"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 <script>
@@ -131,6 +132,8 @@ const TEST_CASE_STATUS_OPTIONS = [
 let runId = null;
 let testRun = null;
 let commentTimers = new Map();
+let currentUserId = null;
+let currentUserRole = '';
 
 function getRunId() {
     const m = window.location.pathname.match(/\/test-run\/(\d+)/);
@@ -167,6 +170,12 @@ function formatDate(val) {
 
 function escapeHtml(value) {
     return String(value || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function canEditComment(row) {
+    if (!row || !row.commentAuthorId) return true;
+    if (currentUserRole === 'ADMIN') return true;
+    return Number(row.commentAuthorId) === Number(currentUserId);
 }
 
 async function loadRun() {
@@ -247,6 +256,13 @@ function renderCases() {
         const tc = row.testCase || {};
         const options = TEST_CASE_STATUS_OPTIONS.map(([value, name]) => `<option value="${value}" ${row.status === value ? 'selected' : ''}>${name}</option>`).join('');
         const steps = (tc.steps || []).length ? `<div class="steps-container">${tc.steps.map(step => `<div class="step-item"><div><strong>${escapeHtml(step.stepNumber)}.</strong> ${escapeHtml(step.action)}</div>${step.expectedResult ? `<div class="small text-muted ms-3">Ожидаемый результат: ${escapeHtml(step.expectedResult)}</div>` : ''}</div>`).join('')}</div>` : '<small class="text-muted">Шаги не заданы</small>';
+        const commentEditable = canEditComment(row);
+        const commentMeta = row.commentAuthorName
+            ? `<div class="small text-muted mt-1">Автор: ${escapeHtml(row.commentAuthorName)}${row.commentUpdatedAt ? ` · ${formatDate(row.commentUpdatedAt)}` : ''}</div>`
+            : '<div class="small text-muted mt-1">Комментарий пока не сохранен</div>';
+        const lockHint = !commentEditable
+            ? '<div class="small text-warning mt-1"><i class="fas fa-lock me-1"></i>Редактировать может только автор комментария или администратор</div>'
+            : '';
         return `
             <div class="card test-case-card" id="case-${tc.id}">
                 <div class="card-body">
@@ -274,8 +290,10 @@ function renderCases() {
                                 <button class="btn btn-outline-warning btn-sm quick-status" data-status="SKIPPED" data-test-case-id="${tc.id}"><i class="fas fa-forward"></i></button>
                             </div>
                             <label class="form-label small fw-bold">Комментарий:</label>
-                            <textarea class="form-control" rows="4" id="comment-${tc.id}" data-test-case-id="${tc.id}" placeholder="Введите комментарий...">${escapeHtml(row.comment || '')}</textarea>
-                            <button class="btn btn-primary btn-sm mt-2 save-case" data-test-case-id="${tc.id}"><i class="fas fa-save me-1"></i>Сохранить</button>
+                            <textarea class="form-control" rows="4" id="comment-${tc.id}" data-test-case-id="${tc.id}" placeholder="Введите комментарий..." ${commentEditable ? '' : 'disabled'}>${escapeHtml(row.comment || '')}</textarea>
+                            <button class="btn btn-primary btn-sm mt-2 save-case" data-test-case-id="${tc.id}" ${commentEditable ? '' : 'disabled'}><i class="fas fa-save me-1"></i>Сохранить</button>
+                            ${commentMeta}
+                            ${lockHint}
                         </div>
                     </div>
                 </div>
@@ -301,6 +319,12 @@ async function saveCase(testCaseId, status, comment, quiet = false) {
     if (!data.success) throw new Error(data.message || 'Ошибка обновления тест-кейса');
     row.status = payload.status;
     row.comment = payload.comment;
+    if (data.testRunTestCase) {
+        row.commentAuthorId = data.testRunTestCase.commentAuthorId;
+        row.commentAuthorName = data.testRunTestCase.commentAuthorName;
+        row.commentAuthorUsername = data.testRunTestCase.commentAuthorUsername;
+        row.commentUpdatedAt = data.testRunTestCase.commentUpdatedAt;
+    }
     const badge = document.getElementById(`badge-${testCaseId}`);
     if (badge) {
         badge.className = `badge ms-2 ${statusClass(row.status)}`;
@@ -382,6 +406,10 @@ async function bulkSetStatus(status) {
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
+    const viewerData = document.getElementById('viewerData');
+    currentUserId = Number(viewerData?.dataset?.userId || 0) || null;
+    currentUserRole = viewerData?.dataset?.role || '';
+
     runId = getRunId();
     if (!runId) {
         showToast('error', 'Некорректный ID тест-рана');

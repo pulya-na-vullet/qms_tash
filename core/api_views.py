@@ -3,6 +3,7 @@ import json
 from django.db.models import Q
 from django.http import JsonResponse as DjangoJsonResponse
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
@@ -101,6 +102,18 @@ def _resolve_comment_user_id(request):
         return None
     core_user = User.objects.filter(username=request.user.username).first()
     return core_user.id if core_user else None
+
+
+def _resolve_core_user(request):
+    if not getattr(request, "user", None) or not request.user.is_authenticated:
+        return None
+    return User.objects.filter(username=request.user.username, enabled=True).first()
+
+
+def _is_admin_user(core_user):
+    if not core_user:
+        return False
+    return "ADMIN" in (core_user.roles or [])
 
 
 @require_http_methods(["GET"])
@@ -813,12 +826,43 @@ def test_run_status_update(request, id):
 def test_run_test_case_status_update(request, test_run_id, test_case_id):
     payload = _json_body(request)
     record = get_object_or_404(TestRunTestCase, test_run_id=test_run_id, test_case_id=test_case_id)
+    core_user = _resolve_core_user(request)
+    is_admin = _is_admin_user(core_user)
+
     record.status = normalize_status(
         payload.get("status"),
         [v for v, _ in TestRunTestCase.TestCaseStatus.choices],
         record.status,
     )
-    record.comment = payload.get("comment")
+    incoming_comment = payload.get("comment")
+    if incoming_comment is not None:
+        new_comment = str(incoming_comment).strip() or None
+        current_comment = (record.comment or "").strip() or None
+        comment_is_changing = new_comment != current_comment
+
+        if comment_is_changing and record.comment_author_id and core_user and record.comment_author_id != core_user.id and not is_admin:
+            return JsonResponse(
+                build_api_response(
+                    False,
+                    "Редактировать комментарий может только его автор или администратор.",
+                )
+            )
+        if comment_is_changing and record.comment_author_id and not core_user and not is_admin:
+            return JsonResponse(
+                build_api_response(
+                    False,
+                    "Для редактирования комментария требуется авторизация.",
+                )
+            )
+
+        record.comment = new_comment
+        if new_comment is None:
+            record.comment_author = None
+            record.comment_updated_at = None
+        elif comment_is_changing:
+            record.comment_author = core_user if core_user else record.comment_author
+            record.comment_updated_at = timezone.now()
+
     record.save()
     return JsonResponse(build_api_response(True, testRunTestCase=TestRunTestCaseSerializer(record).data))
 

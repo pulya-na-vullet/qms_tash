@@ -304,6 +304,14 @@ class TestRunTestCase(TimestampedModel):
         default=TestCaseStatus.NOT_RUN,
     )
     comment = models.TextField(blank=True, null=True)
+    comment_author = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="test_run_case_comments",
+    )
+    comment_updated_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         db_table = "test_run_test_cases"

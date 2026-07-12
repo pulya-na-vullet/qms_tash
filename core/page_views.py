@@ -210,7 +210,16 @@ def test_run_detail_page(request, id):
     test_run = TestRun.objects.filter(id=id).first()
     if not test_run:
         return redirect("/project-qa")
-    return render(request, "test-run-detail.html", {"testRun": TestRunSerializer(test_run).data})
+    core_user = CoreUser.objects.filter(username=request.user.username).first()
+    return render(
+        request,
+        "test-run-detail.html",
+        {
+            "testRun": TestRunSerializer(test_run).data,
+            "currentUserId": core_user.id if core_user else "",
+            "currentUserRole": _resolve_user_role(request),
+        },
+    )
 
 
 @role_required(ROLE_ADMIN, ROLE_ANALYST, ROLE_TESTER)
