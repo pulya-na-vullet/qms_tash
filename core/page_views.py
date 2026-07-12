@@ -5,7 +5,32 @@ from .serializers import TestRunSerializer, TestSuiteSerializer
 
 
 def login_page(request):
-    return render(request, "login.html")
+    if request.method == "POST":
+        username = (request.POST.get("username") or "").strip()
+        password = request.POST.get("password") or ""
+
+        user = User.objects.filter(username=username, enabled=True).first()
+        if user and user.password == password:
+            request.session["user_id"] = user.id
+            request.session["username"] = user.username
+            request.session["roles"] = user.roles or []
+            return redirect("/projects")
+
+        # Compatibility fallback for demo accounts.
+        if username in {"admin", "analyst", "tester"} and password == username:
+            request.session["username"] = username
+            request.session["roles"] = [username.upper()]
+            return redirect("/projects")
+
+        return render(request, "login.html", {"login_error": True})
+
+    return render(request, "login.html", {"logged_out": request.GET.get("logout") == "1"})
+
+
+def logout_page(request):
+    if request.method == "POST":
+        request.session.flush()
+    return redirect("/login?logout=1")
 
 
 def projects_page(request):

@@ -6,6 +6,7 @@ from . import api_views, page_views
 urlpatterns = [
     path("", page_views.login_page),
     path("login", page_views.login_page),
+    path("logout", page_views.logout_page),
     path("projects", page_views.projects_page),
     path("projects/<int:id>", page_views.project_detail_page),
     path("sections/<int:id>", page_views.section_detail_page),
