@@ -265,6 +265,9 @@ function renderCases() {
         const commentMeta = row.commentAuthorName
             ? `<div class="small text-muted mt-1">Автор: ${escapeHtml(row.commentAuthorName)}${row.commentUpdatedAt ? ` · ${formatDate(row.commentUpdatedAt)}` : ''}</div>`
             : '<div class="small text-muted mt-1">Комментарий пока не сохранен</div>';
+        const saveCommentButton = commentEditable
+            ? `<button class="btn btn-primary btn-sm mt-2 save-case" data-test-case-id="${tc.id}"><i class="fas fa-save me-1"></i>Сохранить</button>`
+            : '';
         const lockHint = !commentEditable
             ? '<div class="small text-warning mt-1"><i class="fas fa-lock me-1"></i>Редактировать может только автор или администратор (legacy без автора — только администратор)</div>'
             : '';
@@ -296,7 +299,7 @@ function renderCases() {
                             </div>
                             <label class="form-label small fw-bold">Комментарий:</label>
                             <textarea class="form-control" rows="4" id="comment-${tc.id}" data-test-case-id="${tc.id}" placeholder="Введите комментарий..." ${commentEditable ? '' : 'disabled'}>${escapeHtml(row.comment || '')}</textarea>
-                            <button class="btn btn-primary btn-sm mt-2 save-case" data-test-case-id="${tc.id}" ${commentEditable ? '' : 'disabled'}><i class="fas fa-save me-1"></i>Сохранить</button>
+                            ${saveCommentButton}
                             ${commentMeta}
                             ${lockHint}
                         </div>
