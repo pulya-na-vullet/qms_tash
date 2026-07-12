@@ -839,6 +839,15 @@ def test_run_test_case_status_update(request, test_run_id, test_case_id):
         new_comment = str(incoming_comment).strip() or None
         current_comment = (record.comment or "").strip() or None
         comment_is_changing = new_comment != current_comment
+        has_legacy_comment_without_author = current_comment is not None and not record.comment_author_id
+
+        if comment_is_changing and has_legacy_comment_without_author and not is_admin:
+            return JsonResponse(
+                build_api_response(
+                    False,
+                    "Комментарий без автора может изменить только администратор.",
+                )
+            )
 
         if comment_is_changing and record.comment_author_id and core_user and record.comment_author_id != core_user.id and not is_admin:
             return JsonResponse(
@@ -860,7 +869,12 @@ def test_run_test_case_status_update(request, test_run_id, test_case_id):
             record.comment_author = None
             record.comment_updated_at = None
         elif comment_is_changing:
-            record.comment_author = core_user if core_user else record.comment_author
+            if not record.comment_author_id and current_comment is None:
+                # New comment: first editor becomes owner.
+                record.comment_author = core_user if core_user else record.comment_author
+            elif not record.comment_author_id and current_comment is not None and is_admin:
+                # Legacy comment without owner can be reassigned only by admin.
+                record.comment_author = core_user if core_user else record.comment_author
             record.comment_updated_at = timezone.now()
 
     record.save()

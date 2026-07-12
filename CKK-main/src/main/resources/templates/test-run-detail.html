@@ -173,7 +173,12 @@ function escapeHtml(value) {
 }
 
 function canEditComment(row) {
-    if (!row || !row.commentAuthorId) return true;
+    if (!row) return true;
+    const hasComment = Boolean((row.comment || '').trim());
+    if (!row.commentAuthorId) {
+        if (hasComment && currentUserRole !== 'ADMIN') return false;
+        return true;
+    }
     if (currentUserRole === 'ADMIN') return true;
     return Number(row.commentAuthorId) === Number(currentUserId);
 }
@@ -261,7 +266,7 @@ function renderCases() {
             ? `<div class="small text-muted mt-1">Автор: ${escapeHtml(row.commentAuthorName)}${row.commentUpdatedAt ? ` · ${formatDate(row.commentUpdatedAt)}` : ''}</div>`
             : '<div class="small text-muted mt-1">Комментарий пока не сохранен</div>';
         const lockHint = !commentEditable
-            ? '<div class="small text-warning mt-1"><i class="fas fa-lock me-1"></i>Редактировать может только автор комментария или администратор</div>'
+            ? '<div class="small text-warning mt-1"><i class="fas fa-lock me-1"></i>Редактировать может только автор или администратор (legacy без автора — только администратор)</div>'
             : '';
         return `
             <div class="card test-case-card" id="case-${tc.id}">
