@@ -157,7 +157,14 @@ def test_suite_detail_page(request, id):
     suite = TestSuite.objects.filter(id=id).first()
     if not suite:
         return redirect("/project-qa")
-    return render(request, "test-suite-detail.html", {"testSuite": TestSuiteSerializer(suite).data})
+    return render(
+        request,
+        "test-suite-detail.html",
+        {
+            "testSuite": TestSuiteSerializer(suite).data,
+            "testSuiteCreatedAtDisplay": suite.created_at.strftime("%Y-%m-%d в %H:%M:%S"),
+        },
+    )
 
 
 @role_required(ROLE_ADMIN, ROLE_TESTER)
