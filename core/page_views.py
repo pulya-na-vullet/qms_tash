@@ -105,6 +105,7 @@ def traceability_matrix_page(request, project_id):
 
 def admin_users_page(request):
     users = User.objects.all()
+    admin_count = sum(1 for user in users if "ADMIN" in (user.roles or []))
     return render(
         request,
         "admin/users.html",
@@ -112,7 +113,7 @@ def admin_users_page(request):
             "users": users,
             "totalUsers": users.count(),
             "activeUsers": users.filter(enabled=True).count(),
-            "adminUsers": users.filter(roles__contains=["ADMIN"]).count(),
+            "adminUsers": admin_count,
             "roles": [choice for choice, _ in User.Role.choices],
         },
     )
