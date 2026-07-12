@@ -39,6 +39,7 @@ from .serializers import (
     UserStorySerializer,
 )
 from .services import (
+    analyze_traceability_model_quality,
     build_api_response,
     create_or_update_review,
     create_test_run,
@@ -989,6 +990,13 @@ def admin_ai_test_connection(request):
     if not _is_admin_user(core_user):
         return JsonResponse(build_api_response(False, "Недостаточно прав для проверки подключения"), status=403)
     result = test_ai_provider_connection()
+    return JsonResponse(result, status=200 if result.get("success") else 400)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def traceability_ai_quality(request, project_id):
+    result = analyze_traceability_model_quality(project_id)
     return JsonResponse(result, status=200 if result.get("success") else 400)
 
 

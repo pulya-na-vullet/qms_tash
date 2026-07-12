@@ -230,6 +230,50 @@ def normalize_status(value: str, allowed: list[str], default: str):
     return normalized if normalized in allowed else default
 
 
+def analyze_traceability_model_quality(project_id: int):
+    project = Project.objects.filter(id=project_id).first()
+    if not project:
+        return build_api_response(False, "Проект не найден")
+
+    user_stories = list(
+        UserStory.objects.filter(section__project_id=project_id)
+        .select_related("section")
+        .order_by("section_id", "id")
+    )
+    test_cases = list(
+        TestCase.objects.filter(test_suite__project_id=project_id)
+        .prefetch_related("steps")
+        .order_by("id")
+    )
+    test_case_map = {tc.id: tc for tc in test_cases}
+
+    links = TestCaseUserStory.objects.filter(
+        user_story_id__in=[us.id for us in user_stories],
+        test_case_id__in=[tc.id for tc in test_cases],
+    ).values("user_story_id", "test_case_id")
+    us_to_tc_ids: dict[int, list[int]] = {}
+    for link in links:
+        us_to_tc_ids.setdefault(link["user_story_id"], []).append(link["test_case_id"])
+
+    ai_settings = _get_enabled_yandex_settings()
+    if ai_settings:
+        prompt = _build_traceability_quality_prompt(project, user_stories, us_to_tc_ids, test_case_map)
+        response_text, error_message = _request_yandex_completion(ai_settings, prompt, max_tokens=2200)
+        if not response_text:
+            return build_api_response(
+                False,
+                error_message or "Не удалось получить ответ от AI для оценки тестовой модели",
+            )
+        return build_api_response(True, "AI оценка качества модели сформирована", response=response_text)
+
+    fallback = _build_traceability_quality_fallback(user_stories, us_to_tc_ids, test_case_map)
+    return build_api_response(
+        True,
+        "AI провайдер не включен, показана локальная эвристическая оценка",
+        response=fallback,
+    )
+
+
 def test_ai_provider_connection():
     settings = AIProviderSettings.objects.filter(provider=AIProviderSettings.Provider.YANDEX_GPT).first()
     if not settings:
@@ -361,6 +405,95 @@ def _build_test_suite_analysis_prompt(test_suite_id: int, test_cases: list[TestC
         "Дай краткий вывод о полноте покрытия, рисках и приоритетах доработки.\n\n"
         f"Список тест-кейсов:\n{cases_text}"
     )
+
+
+def _build_traceability_quality_prompt(
+    project: Project,
+    user_stories: list[UserStory],
+    us_to_tc_ids: dict[int, list[int]],
+    test_case_map: dict[int, TestCase],
+) -> str:
+    blocks = []
+    for us in user_stories:
+        linked_tc_ids = us_to_tc_ids.get(us.id, [])
+        if not linked_tc_ids:
+            tc_block = "Нет связанных тест-кейсов."
+        else:
+            tc_lines = []
+            for tc_id in linked_tc_ids[:20]:
+                tc = test_case_map.get(tc_id)
+                if not tc:
+                    continue
+                steps = list(tc.steps.all()[:10])
+                steps_text = "; ".join(
+                    [f"{idx + 1}) {step.action or '-'} -> {step.expected_result or '-'}" for idx, step in enumerate(steps)]
+                ) or "шаги не описаны"
+                tc_lines.append(
+                    f"- TC-{tc.id}: {tc.name or '-'} | priority={tc.priority or '-'} | "
+                    f"description={tc.description or '-'} | preconditions={tc.preconditions or '-'} | steps={steps_text}"
+                )
+            tc_block = "\n".join(tc_lines) if tc_lines else "Нет связанных тест-кейсов."
+        blocks.append(
+            f"US-{us.id}: {us.name or '-'}\n"
+            f"Критичность бизнеса: {us.business_criticality if us.business_criticality is not None else 'не задана'}\n"
+            f"Покрывающие тесты:\n{tc_block}"
+        )
+
+    return (
+        f"Оцени качество тестовой модели проекта '{project.name}'.\n\n"
+        "Для каждой User Story:\n"
+        "1) оцени покрытие (насколько полно US перекрыта тестами);\n"
+        "2) оцени качество тестов (ясность шагов, ожидаемые результаты, наличие негативных проверок);\n"
+        "3) явно укажи, есть ли негативные проверки или их не хватает;\n"
+        "4) дай оценку по шкале 1-10 для каждой US.\n\n"
+        "В конце дай итоговую оценку всей тестовой модели по шкале 1-10 и приоритетный список улучшений.\n"
+        "Отвечай на русском языке, структурированно и практично.\n\n"
+        f"Данные по US и ТК:\n\n{chr(10).join(blocks)}"
+    )
+
+
+def _build_traceability_quality_fallback(
+    user_stories: list[UserStory],
+    us_to_tc_ids: dict[int, list[int]],
+    test_case_map: dict[int, TestCase],
+) -> str:
+    lines = ["Локальная оценка (без внешнего AI):", ""]
+    per_scores = []
+    for us in user_stories:
+        linked_ids = us_to_tc_ids.get(us.id, [])
+        if not linked_ids:
+            score = 1
+            lines.append(f"US-{us.id}: {us.name} -> 1/10 (нет покрывающих ТК)")
+            per_scores.append(score)
+            continue
+        has_steps = 0
+        has_preconditions = 0
+        has_negative_signs = 0
+        for tc_id in linked_ids:
+            tc = test_case_map.get(tc_id)
+            if not tc:
+                continue
+            if tc.steps.exists():
+                has_steps += 1
+            if tc.preconditions:
+                has_preconditions += 1
+            text = f"{tc.name or ''} {tc.description or ''}".lower()
+            if any(marker in text for marker in ["негатив", "ошибк", "invalid", "невер", "отказ", "fail"]):
+                has_negative_signs += 1
+        total = max(len(linked_ids), 1)
+        score = 3
+        score += round((has_steps / total) * 3)
+        score += round((has_preconditions / total) * 2)
+        score += round((has_negative_signs / total) * 2)
+        score = min(max(score, 1), 10)
+        per_scores.append(score)
+        neg_note = "есть признаки негативных проверок" if has_negative_signs else "негативных проверок не обнаружено"
+        lines.append(f"US-{us.id}: {us.name} -> {score}/10; {neg_note}")
+    overall = round(sum(per_scores) / len(per_scores), 1) if per_scores else 0.0
+    lines.append("")
+    lines.append(f"Итоговая оценка модели: {overall}/10")
+    lines.append("Рекомендация: включите AI провайдер для более точной экспертной оценки.")
+    return "\n".join(lines)
 
 
 def _extract_review_score(review_text: str | None) -> int | None:

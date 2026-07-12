@@ -355,6 +355,13 @@
                 </div>
             </div>
         </div>
+        <div class="col-12 mb-2">
+            <div class="d-flex justify-content-end">
+                <button class="btn btn-outline-primary" id="runAiQualityBtn">
+                    <i class="fas fa-robot me-2"></i>ИИ-оценка тестовой модели
+                </button>
+            </div>
+        </div>
     </div>
 
     <div class="row">
@@ -373,6 +380,32 @@
                         {% endif %}
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Модальное окно AI-оценки модели -->
+<div class="modal fade" id="aiQualityModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-robot me-2"></i>ИИ-оценка тестовой модели</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="aiQualityModalBody">
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Загрузка...</span>
+                    </div>
+                    <div class="mt-2 text-muted">Запросите оценку модели кнопкой ниже</div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-primary" id="rerunAiQualityBtn">
+                    <i class="fas fa-rotate-right me-1"></i>Перезапросить
+                </button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
             </div>
         </div>
     </div>
@@ -439,7 +472,51 @@
                 if (testCaseId) openTestCaseModal(testCaseId);
             }
         });
+
+        const aiQualityModal = new bootstrap.Modal(document.getElementById('aiQualityModal'));
+        document.getElementById('runAiQualityBtn').addEventListener('click', function () {
+            aiQualityModal.show();
+            runAiQualityAssessment(projectId);
+        });
+        document.getElementById('rerunAiQualityBtn').addEventListener('click', function () {
+            runAiQualityAssessment(projectId);
+        });
     });
+
+    async function runAiQualityAssessment(projectId) {
+        const body = document.getElementById('aiQualityModalBody');
+        body.innerHTML = `
+            <div class="text-center py-4">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Загрузка...</span>
+                </div>
+                <div class="mt-2 text-muted">ИИ анализирует US и покрывающие ТК...</div>
+            </div>
+        `;
+        try {
+            const response = await fetch(`/api/projects/${projectId}/traceability-ai-quality`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'}
+            });
+            const data = await response.json();
+            if (!data.success) {
+                body.innerHTML = `<div class="alert alert-danger mb-0">${data.message || 'Ошибка AI-оценки'}</div>`;
+                return;
+            }
+            const text = (data.response || 'Ответ пуст');
+            const safeHtml = text
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/\n/g, '<br>');
+            body.innerHTML = `
+                <div class="alert alert-success">${data.message || 'Оценка сформирована'}</div>
+                <div class="border rounded p-3 bg-light" style="white-space: normal;">${safeHtml}</div>
+            `;
+        } catch (err) {
+            body.innerHTML = '<div class="alert alert-danger mb-0">Не удалось получить AI-оценку модели.</div>';
+        }
+    }
 
     function buildPreviewHtml(tc) {
         const tags = (tc.tags || []).length
