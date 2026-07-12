@@ -331,7 +331,7 @@
                          th:each="project : ${projects}"
                          th:data-project-name="${project.name.toLowerCase()}">
                         <div class="card project-card h-100">
-                            <a th:href="@{'/project-qa/' + ${project.id}}" class="project-link">
+                            <a href="/project-qa/{{ project.id }}" class="project-link">
                                 <div class="project-header">
                                     <div class="d-flex justify-content-between align-items-start">
                                         <div>
@@ -375,7 +375,7 @@
                         <div class="list-group-item project-list-item"
                              th:each="project : ${projects}"
                              th:data-project-name="${project.name.toLowerCase()}">
-                            <a th:href="@{'/project-qa/' + ${project.id}}" class="project-list-link">
+                            <a href="/project-qa/{{ project.id }}" class="project-list-link">
                                 <div class="d-flex justify-content-between align-items-center">
                                     <div>
                                         <h5 class="mb-1">

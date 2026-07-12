@@ -329,12 +329,12 @@
                     </div>
                     <div class="card-body">
                         <div class="d-grid">
-                            <a th:href="@{'/project/' + ${project.id} + '/traceability-matrix'}"
+                            <a href="/project/{{ project.id }}/traceability-matrix"
                                class="btn btn-outline-success">
                                 <i class="fas fa-table me-2"></i>
                                 Матрица покрытия
                             </a>
-                            <a th:href="@{'/project/' + ${project.id} + '/test-runs'}"
+                            <a href="/project/{{ project.id }}/test-runs"
                                class="btn btn-outline-info mt-2">
                                 <i class="fas fa-play-circle me-2"></i>
                                 Тест-раны
@@ -431,7 +431,7 @@
                                     <div th:each="testSuite : ${testSuites}"
                                          class="card test-suite-card"
                                          th:id="'test-suite-card-' + ${testSuite.id}">
-                                        <a th:href="@{'/test-suite/' + ${testSuite.id}}" class="test-suite-link">
+                                        <a href="/test-suite/{{ testSuite.id }}" class="test-suite-link">
                                             <div class="card-body">
                                                 <div class="d-flex justify-content-between align-items-center">
                                                     <div>

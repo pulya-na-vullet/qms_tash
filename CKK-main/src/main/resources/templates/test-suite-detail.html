@@ -566,7 +566,7 @@
     <!-- Header с кнопками -->
     <div class="page-header">
         <!-- Кнопка возврата -->
-        <a th:href="@{'/project-qa/' + ${testSuite.projectId}}" class="btn btn-white">
+        <a href="/project-qa/{{ testSuite.projectId }}" class="btn btn-white">
             <i class="fas fa-arrow-left me-2"></i>
             Вернуться к проекту QA
         </a>

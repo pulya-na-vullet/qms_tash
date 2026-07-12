@@ -54,7 +54,7 @@
     <!-- Кнопка возврата -->
     <div class="row mb-4">
         <div class="col-12">
-            <a th:href="@{'/project-qa/' + ${section.project.id}}" class="btn btn-outline-secondary back-button">
+            <a href="/project-qa/{{ section.project.id }}" class="btn btn-outline-secondary back-button">
                 <i class="fas fa-arrow-left me-2"></i>
                 Вернуться к проекту QA
             </a>
@@ -117,7 +117,7 @@
                             <div class="mb-3">
                                 <label class="form-label fw-bold">Проект:</label>
                                 <p class="mb-0">
-                                    <a th:href="@{'/project-qa/' + ${section.project.id}}" class="text-decoration-none">
+                                    <a href="/project-qa/{{ section.project.id }}" class="text-decoration-none">
                                         <i class="fas fa-project-diagram me-1"></i>
                                         <span th:text="${section.project.name}">Название проекта</span>
                                     </a>

@@ -382,15 +382,15 @@
                     </h5>
                     <hr>
                     <div class="d-flex flex-wrap gap-3">
-                        <a th:href="@{'/project/' + ${project.id} + '/traceability-matrix'}" class="btn btn-outline-success qa-tool-btn">
+                        <a href="/project/{{ project.id }}/traceability-matrix" class="btn btn-outline-success qa-tool-btn">
                             <i class="fas fa-table me-2"></i>
                             Матрица покрытия
                         </a>
-                        <a th:href="@{'/project-qa/' + ${project.id}}" class="btn btn-outline-primary qa-tool-btn">
+                        <a href="/project-qa/{{ project.id }}" class="btn btn-outline-primary qa-tool-btn">
                             <i class="fas fa-vial me-2"></i>
                             Тест-кейсы
                         </a>
-                        <a th:href="@{'/project-qa/' + ${project.id} + '/test-runs'}" class="btn btn-outline-info qa-tool-btn">
+                        <a href="/project-qa/{{ project.id }}/test-runs" class="btn btn-outline-info qa-tool-btn">
                             <i class="fas fa-play-circle me-2"></i>
                             Тест-раны
                         </a>

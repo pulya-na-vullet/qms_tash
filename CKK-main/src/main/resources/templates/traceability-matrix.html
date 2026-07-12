@@ -267,7 +267,7 @@
     <!-- Кнопка возврата -->
     <div class="row mb-4">
         <div class="col-12">
-            <a th:href="@{'/projects/' + ${project.id}}" class="btn btn-secondary back-button" id="backToProjectBtn">
+            <a href="/projects/{{ project.id }}" class="btn btn-secondary back-button" id="backToProjectBtn">
                 <i class="fas fa-arrow-left me-2"></i>
                 Вернуться к проекту
             </a>

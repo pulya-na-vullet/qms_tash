@@ -274,7 +274,7 @@
     <div class="row mb-4">
         <div class="col-12 d-flex justify-content-between align-items-center">
             <div>
-                <a th:href="@{'/project-qa/' + ${project.id}}" class="btn btn-white me-2">
+                <a href="/project-qa/{{ project.id }}" class="btn btn-white me-2">
                     <i class="fas fa-arrow-left me-2"></i>Назад к проекту
                 </a>
                 <a href="/project-qa" class="btn btn-white">
@@ -336,7 +336,7 @@
                                 <div class="d-flex justify-content-between align-items-start">
                                     <div class="flex-grow-1">
                                         <h5 class="card-title">
-                                            <a th:href="@{'/test-run/' + ${testRun.id}}" class="text-decoration-none">
+                                            <a href="/test-run/{{ testRun.id }}" class="text-decoration-none">
                                                 <i class="fas fa-play-circle me-2 text-primary"></i>
                                                 <span th:text="${testRun.title}"></span>
                                             </a>
