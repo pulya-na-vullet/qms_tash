@@ -612,7 +612,9 @@ def tag_delete(request, id):
 @require_http_methods(["POST"])
 def comments_create(request):
     payload = _json_body(request)
-    user_id = payload.get("userId") or _resolve_comment_user_id(request)
+    current_user_id = _resolve_comment_user_id(request)
+    # For authenticated users always pin author to current account.
+    user_id = current_user_id if current_user_id is not None else payload.get("userId")
     comment = Comment.objects.create(
         test_case_id=payload.get("testCaseId"),
         content=payload.get("content") or "",
@@ -626,6 +628,16 @@ def comments_create(request):
 @require_http_methods(["PUT"])
 def comments_update(request, comment_id):
     comment = get_object_or_404(Comment, id=comment_id)
+    core_user = _resolve_core_user(request)
+    is_admin = _is_admin_user(core_user)
+    if comment.user_id:
+        if not core_user:
+            return JsonResponse(build_api_response(False, "Для редактирования комментария нужна авторизация."))
+        if not is_admin and comment.user_id != core_user.id:
+            return JsonResponse(build_api_response(False, "Редактировать можно только собственный комментарий."))
+    elif not is_admin:
+        return JsonResponse(build_api_response(False, "Комментарий без автора может изменить только администратор."))
+
     payload = _json_body(request)
     comment.content = payload.get("content") or comment.content
     comment.save()
@@ -635,7 +647,18 @@ def comments_update(request, comment_id):
 @csrf_exempt
 @require_http_methods(["DELETE"])
 def comments_delete(request, comment_id):
-    Comment.objects.filter(id=comment_id).delete()
+    comment = get_object_or_404(Comment, id=comment_id)
+    core_user = _resolve_core_user(request)
+    is_admin = _is_admin_user(core_user)
+    if comment.user_id:
+        if not core_user:
+            return JsonResponse(build_api_response(False, "Для удаления комментария нужна авторизация."))
+        if not is_admin and comment.user_id != core_user.id:
+            return JsonResponse(build_api_response(False, "Удалять можно только собственный комментарий."))
+    elif not is_admin:
+        return JsonResponse(build_api_response(False, "Комментарий без автора может удалить только администратор."))
+
+    comment.delete()
     return JsonResponse(build_api_response(True, "Комментарий удален"))
 
 
