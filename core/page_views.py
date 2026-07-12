@@ -2,6 +2,8 @@ from django.contrib import messages
 from django.contrib.auth import authenticate, login as auth_login, logout as auth_logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User as DjangoUser
+from django.db import connection
+from django.db.utils import OperationalError, ProgrammingError
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 from functools import wraps
@@ -14,6 +16,13 @@ from .services import calculate_traceability_metrics, generate_and_store_matrix
 ROLE_ADMIN = "ADMIN"
 ROLE_ANALYST = "ANALYST"
 ROLE_TESTER = "TESTER"
+
+
+def _ai_settings_table_ready() -> bool:
+    try:
+        return "ai_provider_settings" in connection.introspection.table_names()
+    except Exception:
+        return False
 
 
 def _default_home_for_role(role: str) -> str:
@@ -257,7 +266,13 @@ def admin_users_page(request):
 
     users = CoreUser.objects.all()
     admin_count = sum(1 for user in users if "ADMIN" in (user.roles or []))
-    yandex_settings = AIProviderSettings.objects.filter(provider=AIProviderSettings.Provider.YANDEX_GPT).first()
+    yandex_settings = None
+    ai_settings_table_ready = _ai_settings_table_ready()
+    if ai_settings_table_ready:
+        try:
+            yandex_settings = AIProviderSettings.objects.filter(provider=AIProviderSettings.Provider.YANDEX_GPT).first()
+        except (OperationalError, ProgrammingError):
+            ai_settings_table_ready = False
     return render(
         request,
         "admin/users.html",
@@ -269,12 +284,20 @@ def admin_users_page(request):
             "roles": [choice for choice, _ in CoreUser.Role.choices],
             "yandexConfigured": bool(yandex_settings and yandex_settings.api_key and yandex_settings.folder_id),
             "yandexEnabled": bool(yandex_settings and yandex_settings.enabled),
+            "aiSettingsTableReady": ai_settings_table_ready,
         },
     )
 
 
 @role_required(ROLE_ADMIN)
 def admin_ai_settings_page(request):
+    if not _ai_settings_table_ready():
+        messages.error(
+            request,
+            "Таблица настроек AI не создана. Выполните миграции: python manage.py migrate",
+        )
+        return redirect("/admin/users")
+
     settings_obj, _ = AIProviderSettings.objects.get_or_create(
         provider=AIProviderSettings.Provider.YANDEX_GPT,
         defaults={

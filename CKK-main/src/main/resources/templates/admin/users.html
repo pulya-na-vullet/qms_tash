@@ -338,7 +338,9 @@
                         <div class="text-muted small">Управление интеграцией YandexGPT для AI-функций ревью и анализа.</div>
                     </div>
                     <div class="d-flex align-items-center gap-2">
-                        {% if yandexConfigured %}
+                        {% if not aiSettingsTableReady %}
+                            <span class="badge bg-danger p-2">Требуется миграция БД</span>
+                        {% elif yandexConfigured %}
                             <span class="badge {% if yandexEnabled %}bg-success{% else %}bg-secondary{% endif %} p-2">
                                 {% if yandexEnabled %}Подключено{% else %}Настроено, но выключено{% endif %}
                             </span>
