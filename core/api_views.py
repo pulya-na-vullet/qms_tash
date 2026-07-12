@@ -994,9 +994,10 @@ def admin_ai_test_connection(request):
 
 
 @csrf_exempt
-@require_http_methods(["POST"])
+@require_http_methods(["GET", "POST"])
 def traceability_ai_quality(request, project_id):
-    result = analyze_traceability_model_quality(project_id)
+    force_refresh = request.method == "POST"
+    result = analyze_traceability_model_quality(project_id, force_refresh=force_refresh)
     return JsonResponse(result, status=200 if result.get("success") else 400)
 
 

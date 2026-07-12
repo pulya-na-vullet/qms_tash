@@ -346,6 +346,20 @@ class AIAnalysis(models.Model):
         ordering = ("-created_at",)
 
 
+class TraceabilityAIReview(TimestampedModel):
+    project = models.OneToOneField(
+        Project,
+        on_delete=models.CASCADE,
+        related_name="traceability_ai_review",
+    )
+    response = models.TextField()
+    reviewed_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        db_table = "traceability_ai_reviews"
+        ordering = ("-reviewed_at",)
+
+
 class AIProviderSettings(TimestampedModel):
     class Provider(models.TextChoices):
         YANDEX_GPT = "YANDEX_GPT"

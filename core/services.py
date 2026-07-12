@@ -18,6 +18,7 @@ from .models import (
     TestRun,
     TestRunTestCase,
     TraceabilityMatrix,
+    TraceabilityAIReview,
     User,
     UserStory,
 )
@@ -230,10 +231,21 @@ def normalize_status(value: str, allowed: list[str], default: str):
     return normalized if normalized in allowed else default
 
 
-def analyze_traceability_model_quality(project_id: int):
+def analyze_traceability_model_quality(project_id: int, force_refresh: bool = False):
     project = Project.objects.filter(id=project_id).first()
     if not project:
         return build_api_response(False, "Проект не найден")
+    existing_review = TraceabilityAIReview.objects.filter(project_id=project_id).first()
+    if existing_review and not force_refresh:
+        return build_api_response(
+            True,
+            "Показан сохраненный результат AI-оценки",
+            response=existing_review.response,
+            reviewed_at=existing_review.reviewed_at,
+            cached=True,
+        )
+    if not existing_review and not force_refresh:
+        return build_api_response(False, "Сохраненная AI-оценка не найдена. Нажмите «Перезапросить».")
 
     user_stories = list(
         UserStory.objects.filter(section__project_id=project_id)
@@ -264,13 +276,29 @@ def analyze_traceability_model_quality(project_id: int):
                 False,
                 error_message or "Не удалось получить ответ от AI для оценки тестовой модели",
             )
-        return build_api_response(True, "AI оценка качества модели сформирована", response=response_text)
+        review, _ = TraceabilityAIReview.objects.update_or_create(
+            project_id=project_id,
+            defaults={"response": response_text, "reviewed_at": timezone.now()},
+        )
+        return build_api_response(
+            True,
+            "AI оценка качества модели сформирована",
+            response=review.response,
+            reviewed_at=review.reviewed_at,
+            cached=False,
+        )
 
     fallback = _build_traceability_quality_fallback(user_stories, us_to_tc_ids, test_case_map)
+    review, _ = TraceabilityAIReview.objects.update_or_create(
+        project_id=project_id,
+        defaults={"response": fallback, "reviewed_at": timezone.now()},
+    )
     return build_api_response(
         True,
         "AI провайдер не включен, показана локальная эвристическая оценка",
-        response=fallback,
+        response=review.response,
+        reviewed_at=review.reviewed_at,
+        cached=False,
     )
 
 
