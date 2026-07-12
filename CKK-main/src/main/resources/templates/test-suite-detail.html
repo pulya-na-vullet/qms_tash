@@ -2189,7 +2189,7 @@
         initializeCommentHandlers();
     }
 
-    function saveTestCase() {
+    async function saveTestCase() {
         if (!currentTestCaseData) return;
         const testCaseId = currentTestCaseData.id;
         const updatedData = {
@@ -2199,43 +2199,55 @@
             status: document.getElementById('editTestCaseStatus').value,
             priority: document.getElementById('editTestCasePriority').value
         };
-        // Сначала сохраняем основные данные тест-кейса
-        fetch(`/api/test-cases/${testCaseId}`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(updatedData)
-        })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    // Затем сохраняем теги
-                    return saveTestCaseTags(testCaseId);
-                } else {
-                    throw new Error(data.message || 'Ошибка сохранения тест-кейса');
-                }
-            })
-            .then(() => {
-                // Затем сохраняем шаги
-                return saveTestCaseSteps(testCaseId);
-            })
-            .then(() => {
-                // После сохранения шагов, сохраняем User Story связи
-                return saveTestCaseUserStories(testCaseId);
-            })
-            .then(finalTestCase => {
-                showMessage('Тест-кейс успешно сохранен!', 'success');
-                currentTestCaseData = finalTestCase;
-                // ОБНОВЛЯЕМ СПИСОК ТЕСТ-КЕЙСОВ
-                updateTestCaseInList(finalTestCase);
-                displayTestCaseDetail(finalTestCase); // Переключаемся обратно в режим просмотра
-                isEditing = false;
-            })
-            .catch(error => {
-                console.error('Ошибка сохранения:', error);
-                showMessage('Ошибка при сохранении тест-кейса: ' + error.message, 'danger');
+
+        try {
+            // 1) Базовые поля (ключевая часть редактирования) сохраняем в первую очередь.
+            const baseResponse = await fetch(`/api/test-cases/${testCaseId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(updatedData)
             });
+            const baseData = await baseResponse.json();
+            if (!baseData.success) {
+                throw new Error(baseData.message || 'Ошибка сохранения тест-кейса');
+            }
+
+            // 2) Связанные сущности сохраняем независимо, чтобы один сбой не отменял весь результат.
+            const results = await Promise.allSettled([
+                saveTestCaseTags(testCaseId),
+                saveTestCaseSteps(testCaseId),
+                saveTestCaseUserStories(testCaseId),
+            ]);
+
+            const failed = results.filter(r => r.status === 'rejected');
+            if (failed.length > 0) {
+                console.warn('Часть операций сохранения завершилась с ошибкой:', failed);
+            }
+
+            // 3) Всегда перезагружаем финальное состояние из API.
+            const finalResponse = await fetch(`/api/test-cases/${testCaseId}`);
+            const finalData = await finalResponse.json();
+            if (!finalData.success || !finalData.testCase) {
+                throw new Error(finalData.message || 'Не удалось получить обновленный тест-кейс');
+            }
+
+            const finalTestCase = finalData.testCase;
+            currentTestCaseData = finalTestCase;
+            updateTestCaseInList(finalTestCase);
+            displayTestCaseDetail(finalTestCase);
+            isEditing = false;
+
+            if (failed.length > 0) {
+                showMessage('Основные данные сохранены, но часть дополнительных изменений не применена.', 'warning');
+            } else {
+                showMessage('Тест-кейс успешно сохранен!', 'success');
+            }
+        } catch (error) {
+            console.error('Ошибка сохранения:', error);
+            showMessage('Ошибка при сохранении тест-кейса: ' + error.message, 'danger');
+        }
     }
 
     function saveTestCaseTags(testCaseId) {
