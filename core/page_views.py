@@ -6,7 +6,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.http import require_POST
 from functools import wraps
 
-from .models import Project, Section, TestRun, TestSuite, TraceabilityMatrix, User as CoreUser
+from .models import AIProviderSettings, Project, Section, TestRun, TestSuite, TraceabilityMatrix, User as CoreUser
 from .serializers import TestRunSerializer, TestSuiteSerializer
 from .services import calculate_traceability_metrics, generate_and_store_matrix
 
@@ -257,6 +257,7 @@ def admin_users_page(request):
 
     users = CoreUser.objects.all()
     admin_count = sum(1 for user in users if "ADMIN" in (user.roles or []))
+    yandex_settings = AIProviderSettings.objects.filter(provider=AIProviderSettings.Provider.YANDEX_GPT).first()
     return render(
         request,
         "admin/users.html",
@@ -266,6 +267,67 @@ def admin_users_page(request):
             "activeUsers": users.filter(enabled=True).count(),
             "adminUsers": admin_count,
             "roles": [choice for choice, _ in CoreUser.Role.choices],
+            "yandexConfigured": bool(yandex_settings and yandex_settings.api_key and yandex_settings.folder_id),
+            "yandexEnabled": bool(yandex_settings and yandex_settings.enabled),
+        },
+    )
+
+
+@role_required(ROLE_ADMIN)
+def admin_ai_settings_page(request):
+    settings_obj, _ = AIProviderSettings.objects.get_or_create(
+        provider=AIProviderSettings.Provider.YANDEX_GPT,
+        defaults={
+            "model": "yandexgpt",
+            "endpoint_url": "https://llm.api.cloud.yandex.net/foundationModels/v1/completion",
+            "token_refresh_interval_ms": 36000000,
+        },
+    )
+
+    if request.method == "POST":
+        enabled = request.POST.get("enabled") == "on"
+        api_key = (request.POST.get("apiKey") or "").strip()
+        folder_id = (request.POST.get("folderId") or "").strip()
+        model = (request.POST.get("model") or "yandexgpt").strip()
+        endpoint_url = (request.POST.get("endpointUrl") or settings_obj.endpoint_url).strip()
+        token_refresh_raw = (request.POST.get("tokenRefreshIntervalMs") or "").strip()
+
+        token_refresh_interval_ms = settings_obj.token_refresh_interval_ms
+        if token_refresh_raw:
+            try:
+                token_refresh_interval_ms = int(token_refresh_raw)
+            except ValueError:
+                messages.error(request, "Интервал обновления токена должен быть целым числом (мс).")
+                return redirect("/admin/ai-settings")
+
+        if enabled and (not api_key or not folder_id):
+            messages.error(request, "Для включения YandexGPT необходимо заполнить API Key и Folder ID.")
+            return redirect("/admin/ai-settings")
+
+        if api_key:
+            settings_obj.api_key = api_key
+        settings_obj.folder_id = folder_id or settings_obj.folder_id
+        settings_obj.model = model or "yandexgpt"
+        settings_obj.endpoint_url = endpoint_url or settings_obj.endpoint_url
+        settings_obj.token_refresh_interval_ms = token_refresh_interval_ms
+        settings_obj.enabled = enabled
+        settings_obj.save()
+        messages.success(request, "Настройки YandexGPT сохранены.")
+        return redirect("/admin/ai-settings")
+
+    masked_api_key = ""
+    if settings_obj.api_key:
+        if len(settings_obj.api_key) <= 8:
+            masked_api_key = "*" * len(settings_obj.api_key)
+        else:
+            masked_api_key = f"{settings_obj.api_key[:4]}***{settings_obj.api_key[-4:]}"
+
+    return render(
+        request,
+        "admin/ai-settings.html",
+        {
+            "providerSettings": settings_obj,
+            "maskedApiKey": masked_api_key,
         },
     )
 

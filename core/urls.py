@@ -18,6 +18,7 @@ urlpatterns = [
     path("test-run/<int:id>", page_views.test_run_detail_page),
     path("project/<int:project_id>/traceability-matrix", page_views.traceability_matrix_page),
     path("admin/users", page_views.admin_users_page),
+    path("admin/ai-settings", page_views.admin_ai_settings_page),
     path("admin/users/<int:id>/activate", page_views.admin_user_activate),
     path("admin/users/<int:id>/deactivate", page_views.admin_user_deactivate),
     path("api/projects", api_views.projects_collection),

@@ -337,4 +337,24 @@ class AIAnalysis(models.Model):
         db_table = "ai_analysis"
         ordering = ("-created_at",)
 
+
+class AIProviderSettings(TimestampedModel):
+    class Provider(models.TextChoices):
+        YANDEX_GPT = "YANDEX_GPT"
+
+    provider = models.CharField(max_length=32, choices=Provider.choices, unique=True)
+    enabled = models.BooleanField(default=False)
+    api_key = models.TextField(blank=True, null=True)
+    folder_id = models.CharField(max_length=255, blank=True, null=True)
+    model = models.CharField(max_length=128, default="yandexgpt")
+    endpoint_url = models.CharField(
+        max_length=255,
+        default="https://llm.api.cloud.yandex.net/foundationModels/v1/completion",
+    )
+    token_refresh_interval_ms = models.BigIntegerField(default=36000000)
+
+    class Meta:
+        db_table = "ai_provider_settings"
+        ordering = ("provider",)
+
 # Create your models here.
