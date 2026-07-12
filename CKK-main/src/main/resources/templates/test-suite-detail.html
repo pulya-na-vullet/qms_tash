@@ -572,7 +572,8 @@
         </a>
 
         <!-- Кнопка выхода -->
-        <form th:action="@{/logout}" method="post" class="m-0">
+        <form action="/logout" method="post" class="m-0">
+            {% csrf_token %}
             <button type="submit" class="btn btn-outline-danger">
                 <i class="fas fa-sign-out-alt me-1"></i> Выйти
             </button>
