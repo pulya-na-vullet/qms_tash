@@ -1,12 +1,14 @@
 from datetime import timedelta
 from html import escape
 
+import requests
 from django.db import transaction
 from django.db.models import Prefetch
 from django.utils import timezone
 
 from .models import (
     AIAnalysis,
+    AIProviderSettings,
     Comment,
     Project,
     TestCase,
@@ -140,7 +142,13 @@ def ensure_default_admin():
 
 def run_ai_test_suite_analysis(test_suite_id: int):
     test_cases = TestCase.objects.filter(test_suite_id=test_suite_id).order_by("id")
-    summary = f"Auto analysis: found {test_cases.count()} test cases in suite {test_suite_id}."
+    ai_settings = _get_enabled_yandex_settings()
+    summary = None
+    if ai_settings:
+        prompt = _build_test_suite_analysis_prompt(test_suite_id, list(test_cases))
+        summary = _request_yandex_completion(ai_settings, prompt, max_tokens=1200)
+    if not summary:
+        summary = f"Auto analysis: found {test_cases.count()} test cases in suite {test_suite_id}."
     analysis = AIAnalysis.objects.create(
         test_suite_id=test_suite_id,
         prompt="System-generated analysis prompt",
@@ -153,7 +161,13 @@ def create_or_update_review(test_case_id: int):
     test_case = TestCase.objects.filter(id=test_case_id).first()
     if not test_case:
         return None
-    result = f"Auto review for test case {test_case_id}: name length={len(test_case.name or '')}"
+    ai_settings = _get_enabled_yandex_settings()
+    if ai_settings:
+        result = _request_yandex_completion(ai_settings, _build_test_case_review_prompt(test_case), max_tokens=1200)
+        if not result:
+            result = "AI провайдер включен, но не удалось получить ответ. Проверьте настройки подключения."
+    else:
+        result = f"Auto review for test case {test_case_id}: name length={len(test_case.name or '')}"
     score = 50 + min(50, len((test_case.description or "")) // 10)
     review, _ = TestCaseReview.objects.update_or_create(
         test_case_id=test_case_id,
@@ -187,3 +201,99 @@ def normalize_status(value: str, allowed: list[str], default: str):
         return default
     normalized = value.strip().upper().replace(" ", "_")
     return normalized if normalized in allowed else default
+
+
+def test_ai_provider_connection():
+    settings = AIProviderSettings.objects.filter(provider=AIProviderSettings.Provider.YANDEX_GPT).first()
+    if not settings:
+        return build_api_response(False, "Настройки YandexGPT не найдены")
+    if not settings.api_key or not settings.folder_id:
+        return build_api_response(False, "Заполните API Key и Folder ID")
+    response_text = _request_yandex_completion(
+        settings,
+        "Ответь ровно одной строкой: OK",
+        max_tokens=20,
+    )
+    if not response_text:
+        return build_api_response(False, "Нет ответа от AI провайдера")
+    return build_api_response(True, "Подключение к YandexGPT успешно", response=response_text.strip())
+
+
+def _get_enabled_yandex_settings():
+    settings = AIProviderSettings.objects.filter(provider=AIProviderSettings.Provider.YANDEX_GPT, enabled=True).first()
+    if not settings:
+        return None
+    if not settings.api_key or not settings.folder_id:
+        return None
+    return settings
+
+
+def _request_yandex_completion(settings: AIProviderSettings, prompt: str, max_tokens: int = 1000) -> str | None:
+    model_name = (settings.model or "yandexgpt").strip()
+    endpoint_url = (settings.endpoint_url or "").strip() or "https://llm.api.cloud.yandex.net/foundationModels/v1/completion"
+    payload = {
+        "modelUri": f"gpt://{settings.folder_id}/{model_name}",
+        "completionOptions": {
+            "stream": False,
+            "temperature": 0.2,
+            "maxTokens": str(max_tokens),
+        },
+        "messages": [
+            {"role": "system", "text": "Ты эксперт по тестированию ПО. Отвечай на русском языке."},
+            {"role": "user", "text": prompt},
+        ],
+    }
+    try:
+        response = requests.post(
+            endpoint_url,
+            headers={
+                "Authorization": f"Api-Key {settings.api_key}",
+                "x-folder-id": settings.folder_id,
+                "Content-Type": "application/json",
+            },
+            json=payload,
+            timeout=30,
+        )
+        response.raise_for_status()
+        data = response.json()
+    except (requests.RequestException, ValueError):
+        return None
+
+    try:
+        return (data["result"]["alternatives"][0]["message"]["text"] or "").strip() or None
+    except (KeyError, IndexError, TypeError):
+        return None
+
+
+def _build_test_case_review_prompt(test_case: TestCase) -> str:
+    steps = list(test_case.steps.all().order_by("step_number"))
+    steps_text = "\n".join(
+        [
+            f"{idx + 1}. Действие: {step.action or '-'}; Ожидаемый результат: {step.expected_result or '-'}"
+            for idx, step in enumerate(steps)
+        ]
+    ) or "Шаги не указаны."
+    return (
+        "Выполни ревью тест-кейса. Дай краткий структурированный ответ:\n"
+        "- Сильные стороны\n"
+        "- Проблемы\n"
+        "- Что улучшить\n"
+        "- Итоговая оценка по шкале 1-10\n\n"
+        f"Название: {test_case.name or '-'}\n"
+        f"Описание: {test_case.description or '-'}\n"
+        f"Предусловия: {test_case.preconditions or '-'}\n"
+        f"Приоритет: {test_case.priority or '-'}\n"
+        f"Шаги:\n{steps_text}"
+    )
+
+
+def _build_test_suite_analysis_prompt(test_suite_id: int, test_cases: list[TestCase]) -> str:
+    lines = []
+    for case in test_cases[:50]:
+        lines.append(f"TC-{case.id}: {case.name or '-'} | priority={case.priority or '-'} | status={case.status or '-'}")
+    cases_text = "\n".join(lines) or "Тест-кейсов нет."
+    return (
+        f"Проанализируй тест-сьют #{test_suite_id}. "
+        "Дай краткий вывод о полноте покрытия, рисках и приоритетах доработки.\n\n"
+        f"Список тест-кейсов:\n{cases_text}"
+    )

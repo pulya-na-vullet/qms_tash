@@ -45,6 +45,7 @@ from .services import (
     generate_and_store_matrix,
     normalize_status,
     run_ai_test_suite_analysis,
+    test_ai_provider_connection,
 )
 
 
@@ -979,6 +980,16 @@ def token_status(request):
 @require_http_methods(["GET"])
 def token_refresh(request):
     return JsonResponse({"status": "Token refresh initiated"})
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def admin_ai_test_connection(request):
+    core_user = _resolve_core_user(request)
+    if not _is_admin_user(core_user):
+        return JsonResponse(build_api_response(False, "Недостаточно прав для проверки подключения"), status=403)
+    result = test_ai_provider_connection()
+    return JsonResponse(result, status=200 if result.get("success") else 400)
 
 
 @csrf_exempt

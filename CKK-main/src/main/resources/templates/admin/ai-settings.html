@@ -95,15 +95,47 @@
             </div>
 
             <div class="mt-4 d-flex justify-content-end">
+                <button type="button" class="btn btn-outline-secondary me-2" id="testAiConnectionBtn">
+                    <i class="bi bi-wifi me-1"></i>Проверить подключение к AI
+                </button>
                 <button type="submit" class="btn btn-primary">
                     <i class="bi bi-save me-1"></i>Сохранить настройки
                 </button>
             </div>
         </form>
+        <div id="aiConnectionTestResult" class="mt-3"></div>
     </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    document.getElementById('testAiConnectionBtn').addEventListener('click', async function () {
+        const resultBox = document.getElementById('aiConnectionTestResult');
+        const btn = this;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="bi bi-arrow-repeat me-1"></i>Проверяем...';
+        resultBox.innerHTML = '';
+
+        try {
+            const response = await fetch('/api/admin/ai-settings/test-connection', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'}
+            });
+            const data = await response.json();
+            if (data.success) {
+                const responsePreview = data.response ? `<div class="small mt-1"><strong>Ответ:</strong> <code>${data.response}</code></div>` : '';
+                resultBox.innerHTML = `<div class="alert alert-success mb-0">${data.message || 'Подключение успешно'}${responsePreview}</div>`;
+            } else {
+                resultBox.innerHTML = `<div class="alert alert-danger mb-0">${data.message || 'Ошибка подключения'}</div>`;
+            }
+        } catch (err) {
+            resultBox.innerHTML = '<div class="alert alert-danger mb-0">Не удалось проверить подключение к AI провайдеру.</div>';
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-wifi me-1"></i>Проверить подключение к AI';
+        }
+    });
+</script>
 </body>
 </html>
 

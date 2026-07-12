@@ -21,6 +21,7 @@ urlpatterns = [
     path("admin/ai-settings", page_views.admin_ai_settings_page),
     path("admin/users/<int:id>/activate", page_views.admin_user_activate),
     path("admin/users/<int:id>/deactivate", page_views.admin_user_deactivate),
+    path("api/admin/ai-settings/test-connection", api_views.admin_ai_test_connection),
     path("api/projects", api_views.projects_collection),
     path("api/projects/<int:id>", api_views.projects_item),
     path("api/projects/<int:project_id>/test-suites", api_views.project_test_suites_collection),
