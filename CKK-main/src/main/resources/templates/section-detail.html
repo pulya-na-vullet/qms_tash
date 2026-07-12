@@ -523,7 +523,7 @@
     let currentEditUserStoryId = null;
     let userStoriesFile = null;
     const currentUserRole = document.body.dataset.userRole || '';
-    const isAdminRole = currentUserRole === 'ADMIN';
+    const isAnalystRole = currentUserRole === 'ANALYST';
 
     function getCriticalityBadgeClass(value) {
         if (value >= 1 && value <= 4) return 'bg-success';
@@ -552,7 +552,7 @@
         const sectionId = document.getElementById('sectionData').dataset.sectionId;
         console.log('Загрузка страницы, sectionId:', sectionId);
         loadUserStories(sectionId);
-        if (isAdminRole) {
+        if (isAnalystRole) {
             document.getElementById('businessCriticalityCreateWrapper').style.display = 'block';
             document.getElementById('businessCriticalityEditWrapper').style.display = 'block';
         }
@@ -656,7 +656,7 @@
         }
 
         const payload = { name: userStoryName };
-        if (isAdminRole && businessCriticalityRaw !== '') {
+        if (isAnalystRole && businessCriticalityRaw !== '') {
             payload.businessCriticality = Number(businessCriticalityRaw);
         }
 
@@ -852,7 +852,7 @@
         }
 
         const payload = { name: newName };
-        if (isAdminRole) {
+        if (isAnalystRole) {
             payload.businessCriticality = businessCriticalityRaw === '' ? null : Number(businessCriticalityRaw);
         }
 

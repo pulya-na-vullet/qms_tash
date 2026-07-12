@@ -73,11 +73,11 @@ def _json_body(request):
     return json.loads(request.body.decode("utf-8"))
 
 
-def _is_admin_request(request):
+def _is_analyst_request(request):
     if not getattr(request, "user", None) or not request.user.is_authenticated:
         return False
     core_user = User.objects.filter(username=request.user.username, enabled=True).first()
-    return bool(core_user and "ADMIN" in (core_user.roles or []))
+    return bool(core_user and "ANALYST" in (core_user.roles or []))
 
 
 def _parse_business_criticality(payload):
@@ -472,8 +472,8 @@ def section_user_stories_create(request, section_id):
     criticality, error = _parse_business_criticality(payload)
     if error:
         return JsonResponse(build_api_response(False, error))
-    if criticality is not None and not _is_admin_request(request):
-        return JsonResponse(build_api_response(False, "Только администратор может задавать критичность бизнеса"), status=403)
+    if criticality is not None and not _is_analyst_request(request):
+        return JsonResponse(build_api_response(False, "Только аналитик может задавать критичность бизнеса"), status=403)
     story = UserStory.objects.create(
         section_id=section_id,
         name=name,
@@ -517,8 +517,8 @@ def user_story_update(request, id):
     if error:
         return JsonResponse(build_api_response(False, error))
     if "businessCriticality" in payload or "business_criticality" in payload:
-        if not _is_admin_request(request):
-            return JsonResponse(build_api_response(False, "Только администратор может изменять критичность бизнеса"), status=403)
+        if not _is_analyst_request(request):
+            return JsonResponse(build_api_response(False, "Только аналитик может изменять критичность бизнеса"), status=403)
         story.business_criticality = criticality
     story.name = name
     story.save()
