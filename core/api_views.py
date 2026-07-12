@@ -77,7 +77,10 @@ def _is_analyst_request(request):
     if not getattr(request, "user", None) or not request.user.is_authenticated:
         return False
     core_user = User.objects.filter(username=request.user.username, enabled=True).first()
-    return bool(core_user and "ANALYST" in (core_user.roles or []))
+    if not core_user:
+        return False
+    roles = set(core_user.roles or [])
+    return "ANALYST" in roles or "ROLE_ANALYST" in roles
 
 
 def _parse_business_criticality(payload):

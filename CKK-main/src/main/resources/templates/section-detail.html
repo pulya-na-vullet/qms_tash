@@ -523,7 +523,7 @@
     let currentEditUserStoryId = null;
     let userStoriesFile = null;
     const currentUserRole = document.body.dataset.userRole || '';
-    const isAnalystRole = currentUserRole === 'ANALYST';
+    const isAnalystRole = currentUserRole === 'ANALYST' || currentUserRole === 'ROLE_ANALYST';
 
     function getCriticalityBadgeClass(value) {
         if (value >= 1 && value <= 4) return 'bg-success';
