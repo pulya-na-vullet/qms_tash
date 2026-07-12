@@ -54,19 +54,22 @@ def generate_and_store_matrix(project_id: int) -> TraceabilityMatrix:
     for us in user_stories:
         us_name = escape(us.name or "", quote=True)
         criticality = us.business_criticality
-        criticality_part = f" / {criticality}" if criticality is not None else ""
-        us_label = f"US {us.id}{criticality_part}"
+        us_label = f"US {us.id}"
         if criticality is None:
             us_cell_class = "user-story-cell"
+            criticality_badge = ""
         elif criticality <= 4:
             us_cell_class = "user-story-cell criticality-low"
+            criticality_badge = f"<span class=\"badge bg-success ms-2\">{criticality}</span>"
         elif criticality <= 7:
             us_cell_class = "user-story-cell criticality-medium"
+            criticality_badge = f"<span class=\"badge bg-warning text-dark ms-2\">{criticality}</span>"
         else:
             us_cell_class = "user-story-cell criticality-high"
+            criticality_badge = f"<span class=\"badge bg-danger ms-2\">{criticality}</span>"
         html.append(
             f"<tr class=\"user-story-row\"><td class=\"{us_cell_class}\" title=\"{us_name}\">"
-            f"<strong>{us_label}</strong><br>{us_name}</td>"
+            f"<strong>{us_label}</strong>{criticality_badge}<br>{us_name}</td>"
         )
         for tc in test_cases:
             if (tc.id, us.id) in links:
