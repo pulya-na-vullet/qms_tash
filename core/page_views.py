@@ -38,6 +38,9 @@ def _default_home_for_role(role: str) -> str:
 def _resolve_user_role(request) -> str:
     if not request.user.is_authenticated:
         return ROLE_ANALYST
+    core_user_any = CoreUser.objects.filter(username=request.user.username).first()
+    if core_user_any and not core_user_any.enabled:
+        return "DISABLED"
     core_user = CoreUser.objects.filter(username=request.user.username, enabled=True).first()
     roles = core_user.roles if core_user and core_user.roles else []
     if ROLE_ADMIN in roles:
@@ -47,6 +50,8 @@ def _resolve_user_role(request) -> str:
     if ROLE_ANALYST in roles:
         return ROLE_ANALYST
     # Fallback for legacy/demo usernames.
+    if core_user_any and core_user_any.enabled is False:
+        return "DISABLED"
     if request.user.username == "admin":
         return ROLE_ADMIN
     if request.user.username == "tester":
@@ -60,6 +65,10 @@ def role_required(*allowed_roles):
         @login_required(login_url="/login")
         def wrapped(request, *args, **kwargs):
             current_role = _resolve_user_role(request)
+            if current_role == "DISABLED":
+                auth_logout(request)
+                messages.error(request, "Пользователь деактивирован. Вход запрещен.")
+                return redirect("/login")
             if current_role in allowed_roles:
                 return view_func(request, *args, **kwargs)
             messages.error(request, "Недостаточно прав для доступа к разделу.")
@@ -122,6 +131,9 @@ def login_page(request):
 
         user = authenticate(request, username=username, password=password)
         if user is not None and user.is_active:
+            core_user = CoreUser.objects.filter(username=username).first()
+            if core_user and not core_user.enabled:
+                return render(request, "login.html", {"login_error": True})
             auth_login(request, user)
             return redirect(_default_home_for_role(_resolve_user_role(request)))
 
