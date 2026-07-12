@@ -561,7 +561,7 @@
         }
     </style>
 </head>
-<body>
+<body data-user-role="{{ currentUserRole }}" data-current-user-id="{{ currentUserId }}">
 <div class="container-fluid py-4">
     <!-- Header с кнопками -->
     <div class="page-header">
@@ -793,6 +793,14 @@
     let availableUserStories = [];
     let testSuiteData = null;
     let currentCommentSort = 'desc';
+    const currentUserRole = document.body.dataset.userRole || '';
+    const currentUserId = Number(document.body.dataset.currentUserId || 0) || null;
+
+    function canEditCommentAction(comment) {
+        if (!comment || comment.commentType === 'AI_GENERATED') return false;
+        if (currentUserRole === 'ADMIN') return true;
+        return Boolean(comment.userId) && Number(comment.userId) === currentUserId;
+    }
 
     // Функция для определения контрастного цвета текста
     function getContrastTextColor(hexColor) {
@@ -1817,6 +1825,7 @@
     function generateCommentHtml(comment) {
         const isAI = comment.commentType === 'AI_GENERATED';
         const authorName = comment.userFullName || comment.userUsername || 'Неизвестный пользователь';
+        const canEdit = canEditCommentAction(comment);
         const isEdited = comment.updatedAt && comment.updatedAt !== comment.createdAt;
         const editInfo = isEdited ? ` <i class="fas fa-edit text-muted" title="Отредактировано: ${new Date(comment.updatedAt).toLocaleString('ru-RU')}"></i>` : '';
         return `
@@ -1839,7 +1848,7 @@
                         <p class="mb-1 comment-content">${comment.content}</p>
                     </div>
                     <div class="comment-actions">
-                        ${!isAI ? `
+                        ${!isAI && canEdit ? `
                             <button class="btn btn-sm btn-outline-primary edit-comment-btn" title="Редактировать">
                                 <i class="fas fa-edit"></i>
                             </button>

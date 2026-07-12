@@ -172,12 +172,15 @@ def test_suite_detail_page(request, id):
     suite = TestSuite.objects.filter(id=id).first()
     if not suite:
         return redirect("/project-qa")
+    core_user = CoreUser.objects.filter(username=request.user.username).first()
     return render(
         request,
         "test-suite-detail.html",
         {
             "testSuite": TestSuiteSerializer(suite).data,
             "testSuiteCreatedAtDisplay": suite.created_at.strftime("%Y-%m-%d в %H:%M:%S"),
+            "currentUserId": core_user.id if core_user else "",
+            "currentUserRole": _resolve_user_role(request),
         },
     )
 
@@ -234,6 +237,7 @@ def traceability_matrix_page(request, project_id):
         matrix = TraceabilityMatrix.objects.filter(project_id=project_id).order_by("-created_at").first()
     matrix_html = matrix.matrix_html if matrix else ""
     user_role = _resolve_user_role(request)
+    core_user = CoreUser.objects.filter(username=request.user.username).first()
     return render(
         request,
         "traceability-matrix.html",
@@ -241,6 +245,7 @@ def traceability_matrix_page(request, project_id):
             "project": project,
             "matrixHtml": matrix_html,
             "userRole": user_role,
+            "currentUserId": core_user.id if core_user else "",
             "matrixMetrics": calculate_traceability_metrics(project_id),
         },
     )

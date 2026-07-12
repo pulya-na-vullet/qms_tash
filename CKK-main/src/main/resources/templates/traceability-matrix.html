@@ -290,7 +290,7 @@
         }
     </style>
 </head>
-<body data-user-role="{{ userRole }}">
+<body data-user-role="{{ userRole }}" data-current-user-id="{{ currentUserId }}">
 <div class="container py-4">
     <!-- Кнопка возврата -->
     <div class="row mb-4">
@@ -401,6 +401,14 @@
     let isEditingInModal = false;
     let currentCommentSort = 'desc'; // 'desc' - новые сверху, 'asc' - старые сверху
     const matrixPreviewCache = new Map();
+    const currentUserRole = document.body.dataset.userRole || '';
+    const currentUserId = Number(document.body.dataset.currentUserId || 0) || null;
+
+    function canEditCommentAction(comment) {
+        if (!comment || comment.commentType === 'AI_GENERATED') return false;
+        if (currentUserRole === 'ADMIN') return true;
+        return Boolean(comment.userId) && Number(comment.userId) === currentUserId;
+    }
 
     document.addEventListener('DOMContentLoaded', function () {
         const projectId = document.getElementById('projectData').dataset.projectId;
@@ -693,6 +701,7 @@
     function generateCommentHtml(comment) {
         const isAI = comment.commentType === 'AI_GENERATED';
         const authorName = comment.userFullName || comment.userUsername || 'Неизвестный пользователь';
+        const canEdit = canEditCommentAction(comment);
         const isEdited = comment.updatedAt && comment.updatedAt !== comment.createdAt;
         const editInfo = isEdited ? ` <i class="fas fa-edit text-muted" title="Отредактировано: ${new Date(comment.updatedAt).toLocaleString('ru-RU')}"></i>` : '';
         return `
@@ -715,7 +724,7 @@
                         <p class="mb-1 comment-content">${comment.content}</p>
                     </div>
                     <div class="comment-actions">
-                        ${!isAI ? `
+                        ${!isAI && canEdit ? `
                             <button class="btn btn-sm btn-outline-primary edit-comment-btn" title="Редактировать">
                                 <i class="fas fa-edit"></i>
                             </button>
