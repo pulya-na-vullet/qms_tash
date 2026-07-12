@@ -1130,6 +1130,11 @@
         detailContent.innerHTML = `
             <div class="row">
                 <div class="col-12">
+                    <div class="alert alert-light border mb-3">
+                        <i class="fas fa-info-circle me-2 text-primary"></i>
+                        Это режим просмотра. Чтобы изменить "Предусловия", "Описание", "Шаги" и другие поля, нажмите кнопку
+                        <strong><i class="fas fa-edit me-1"></i>Редактировать</strong> в правом верхнем углу карточки.
+                    </div>
                     <!-- Статус и приоритет -->
                     <div class="mb-3">
                         <div class="d-flex gap-2">
@@ -1502,22 +1507,25 @@
     // Загрузка деталей тест-кейса
     function loadTestCaseDetail(testCaseId) {
         if (!testCaseId || testCaseId === 'undefined' || testCaseId === 'null') {
-            return;
+            return Promise.resolve(null);
         }
-        fetch(`/api/test-cases/${testCaseId}`)
+        return fetch(`/api/test-cases/${testCaseId}`)
             .then(response => response.json())
             .then(data => {
                 if (data.success && data.testCase) {
                     currentTestCaseData = data.testCase;
                     displayTestCaseDetail(data.testCase);
                     isEditing = false;
+                    return data.testCase;
                 } else {
                     showMessage('Ошибка загрузки деталей тест-кейса', 'danger');
+                    return null;
                 }
             })
             .catch(error => {
                 console.error('Ошибка загрузки деталей тест-кейса:', error);
                 showMessage('Ошибка загрузки деталей тест-кейса', 'danger');
+                return null;
             });
     }
 
@@ -1596,11 +1604,35 @@
 
     // Инициализация обработчиков кнопок
     function initializeButtonHandlers() {
-        document.getElementById('editTestCaseBtn').addEventListener('click', function() {
-            if (currentTestCaseData && !isEditing) {
-                enableEditMode(currentTestCaseData);
-                isEditing = true;
+        async function enterEditMode() {
+            if (isEditing) return;
+
+            let testCase = currentTestCaseData;
+            if (!testCase && currentActiveTestCase) {
+                const activeId = resolveTestCaseIdFromElement(currentActiveTestCase);
+                if (activeId) {
+                    testCase = await loadTestCaseDetail(activeId);
+                }
             }
+            if (!testCase) {
+                const urlParams = new URLSearchParams(window.location.search);
+                const fromUrl = urlParams.get('testCaseId');
+                if (fromUrl && fromUrl !== 'undefined' && fromUrl !== 'null') {
+                    testCase = await loadTestCaseDetail(fromUrl);
+                }
+            }
+
+            if (!testCase) {
+                showMessage('Сначала выберите тест-кейс в списке слева.', 'warning');
+                return;
+            }
+
+            enableEditMode(testCase);
+            isEditing = true;
+        }
+
+        document.getElementById('editTestCaseBtn').addEventListener('click', function() {
+            enterEditMode();
         });
         document.getElementById('cloneTestCaseBtn').addEventListener('click', function() {
             if (currentActiveTestCase) {
