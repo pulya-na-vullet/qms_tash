@@ -131,6 +131,11 @@
             background: #fff3cd;
             border: 1px solid #ffecb5;
         }
+        .virtual-spacer-row > td {
+            padding: 0 !important;
+            border: none !important;
+            background: transparent !important;
+        }
 
         .user-story-header {
             padding: 15px 10px;
@@ -642,6 +647,7 @@
         updateBackButtonLink(projectId);
         loadProjectTags(projectId);
         loadProjectUserStories(projectId);
+        initializeMatrixRowVirtualization();
         initializeMatrixPreviews();
         initializeMatrixScrolling();
 
@@ -663,6 +669,72 @@
             runAiQualityAssessment(projectId, true);
         });
     });
+
+    function initializeMatrixRowVirtualization() {
+        const wrapper = document.getElementById('matrixWrapper');
+        if (!wrapper) return;
+        const table = wrapper.querySelector('.traceability-table');
+        const tbody = table?.querySelector('tbody');
+        if (!table || !tbody) return;
+
+        const allRows = Array.from(tbody.querySelectorAll('tr.user-story-row'));
+        if (allRows.length < 140) return;
+
+        const headerHeight = table.tHead?.getBoundingClientRect().height || 60;
+        const rowHeightSamples = allRows.slice(0, 30).map(row => row.getBoundingClientRect().height).filter(Boolean);
+        const avgRowHeight = rowHeightSamples.length
+            ? rowHeightSamples.reduce((acc, val) => acc + val, 0) / rowHeightSamples.length
+            : 38;
+        const rowHeight = Math.max(Math.round(avgRowHeight), 28);
+        const colCount = table.querySelectorAll('thead th').length || 1;
+        const overscan = 14;
+        let renderStart = -1;
+        let renderEnd = -1;
+        let frameId = 0;
+
+        wrapper.dataset.totalRows = String(allRows.length);
+
+        const topSpacer = document.createElement('tr');
+        topSpacer.className = 'virtual-spacer-row';
+        topSpacer.innerHTML = `<td colspan="${colCount}" style="height:0px"></td>`;
+
+        const bottomSpacer = document.createElement('tr');
+        bottomSpacer.className = 'virtual-spacer-row';
+        bottomSpacer.innerHTML = `<td colspan="${colCount}" style="height:0px"></td>`;
+
+        const renderWindow = () => {
+            frameId = 0;
+            const scrollTop = wrapper.scrollTop;
+            const viewportHeight = wrapper.clientHeight;
+            const relativeTop = Math.max(scrollTop - headerHeight, 0);
+            const start = Math.max(Math.floor(relativeTop / rowHeight) - overscan, 0);
+            const visibleRows = Math.ceil((viewportHeight + headerHeight) / rowHeight) + overscan * 2;
+            const end = Math.min(start + visibleRows, allRows.length);
+
+            if (start === renderStart && end === renderEnd) return;
+            renderStart = start;
+            renderEnd = end;
+
+            const fragment = document.createDocumentFragment();
+            topSpacer.firstElementChild.style.height = `${start * rowHeight}px`;
+            fragment.appendChild(topSpacer);
+            for (let i = start; i < end; i += 1) {
+                fragment.appendChild(allRows[i]);
+            }
+            bottomSpacer.firstElementChild.style.height = `${Math.max((allRows.length - end) * rowHeight, 0)}px`;
+            fragment.appendChild(bottomSpacer);
+            tbody.replaceChildren(fragment);
+        };
+
+        const scheduleRender = () => {
+            if (frameId) return;
+            frameId = requestAnimationFrame(renderWindow);
+        };
+
+        wrapper.addEventListener('scroll', scheduleRender, { passive: true });
+        window.addEventListener('resize', scheduleRender);
+        renderWindow();
+    }
 
     function initializeMatrixScrolling() {
         const wrapper = document.getElementById('matrixWrapper');
@@ -688,7 +760,7 @@
         const hasHorizontalOverflow = () => table.scrollWidth > wrapper.clientWidth + 2;
         const hasVerticalOverflow = () => table.scrollHeight > wrapper.clientHeight + 2;
         const matrixCellCount = () => {
-            const rows = table.querySelectorAll('tbody tr').length;
+            const rows = Number(wrapper.dataset.totalRows || 0) || table.querySelectorAll('tbody tr.user-story-row').length;
             const cols = table.querySelectorAll('thead th').length;
             return rows * cols;
         };
