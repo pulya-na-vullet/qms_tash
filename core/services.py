@@ -307,18 +307,13 @@ def analyze_traceability_model_quality(project_id: int, force_refresh: bool = Fa
 
     ai_settings = _get_enabled_yandex_settings()
     if ai_settings:
-        prompt = _build_traceability_quality_prompt(project, user_stories, us_to_tc_ids, test_case_map)
-        response_text, error_message = _request_yandex_completion(ai_settings, prompt, max_tokens=2200)
-        if not response_text and error_message and "number of input tokens" in error_message.lower():
-            # Retry with a stricter compact prompt when provider reports context overflow.
-            compact_prompt = _build_traceability_quality_prompt(
-                project,
-                user_stories,
-                us_to_tc_ids,
-                test_case_map,
-                compact_mode=True,
-            )
-            response_text, error_message = _request_yandex_completion(ai_settings, compact_prompt, max_tokens=2200)
+        response_text, error_message = _run_traceability_quality_in_batches(
+            ai_settings,
+            project,
+            user_stories,
+            us_to_tc_ids,
+            test_case_map,
+        )
         if not response_text:
             return build_api_response(
                 False,
@@ -561,6 +556,117 @@ def _build_traceability_quality_prompt(
         )
 
     return header + "".join(blocks) + suffix
+
+
+def _run_traceability_quality_in_batches(
+    settings: AIProviderSettings,
+    project: Project,
+    user_stories: list[UserStory],
+    us_to_tc_ids: dict[int, list[int]],
+    test_case_map: dict[int, TestCase],
+) -> tuple[str | None, str | None]:
+    if not user_stories:
+        return "В проекте нет User Story для анализа.", None
+
+    batch_size = 25
+    batch_results: list[str] = []
+    total_batches = (len(user_stories) + batch_size - 1) // batch_size
+
+    for idx, batch in enumerate(_chunked(user_stories, batch_size), start=1):
+        prompt = _build_traceability_quality_prompt(
+            project,
+            batch,
+            us_to_tc_ids,
+            test_case_map,
+            compact_mode=False,
+        )
+        batch_text, error_message = _request_yandex_completion(settings, prompt, max_tokens=1800)
+        if not batch_text and _is_input_token_overflow_error(error_message):
+            compact_prompt = _build_traceability_quality_prompt(
+                project,
+                batch,
+                us_to_tc_ids,
+                test_case_map,
+                compact_mode=True,
+            )
+            batch_text, error_message = _request_yandex_completion(settings, compact_prompt, max_tokens=1800)
+
+        if not batch_text:
+            return (
+                None,
+                f"{error_message or 'Не удалось обработать батч'} (батч {idx}/{total_batches})",
+            )
+
+        batch_results.append(f"### Батч {idx}/{total_batches}\n{batch_text.strip()}")
+
+    synthesis_prompt = _build_traceability_quality_synthesis_prompt(project, batch_results)
+    synthesis_text, synthesis_error = _request_yandex_completion(settings, synthesis_prompt, max_tokens=1200)
+    if not synthesis_text and _is_input_token_overflow_error(synthesis_error):
+        compact_synthesis_prompt = _build_traceability_quality_synthesis_prompt(
+            project,
+            batch_results,
+            compact_mode=True,
+        )
+        synthesis_text, synthesis_error = _request_yandex_completion(settings, compact_synthesis_prompt, max_tokens=1200)
+
+    if not synthesis_text:
+        synthesis_text = (
+            "Итоговая сводка не получена автоматически. Ниже приведены результаты по всем батчам."
+        )
+
+    full_report = (
+        f"Проект: {project.name}\n"
+        f"User Story проанализировано: {len(user_stories)}\n"
+        f"Батчей: {total_batches}\n\n"
+        f"## Итоговая сводка\n{synthesis_text.strip()}\n\n"
+        f"## Детальные результаты по батчам\n\n"
+        f"{chr(10).join(batch_results)}"
+    )
+    return full_report, None
+
+
+def _build_traceability_quality_synthesis_prompt(
+    project: Project,
+    batch_results: list[str],
+    compact_mode: bool = False,
+) -> str:
+    max_chars_per_batch = 1200 if compact_mode else 2200
+    blocks = []
+    total_chars = 0
+    total_limit = 14000 if compact_mode else 24000
+    for idx, result in enumerate(batch_results, start=1):
+        text = result.strip()
+        if len(text) > max_chars_per_batch:
+            text = text[: max_chars_per_batch - 1] + "…"
+        block = f"Батч {idx}:\n{text}\n"
+        if total_chars + len(block) > total_limit:
+            blocks.append("... (часть батчей сокращена в сводном промпте)")
+            break
+        blocks.append(block)
+        total_chars += len(block)
+
+    return (
+        f"Ниже результаты батч-анализа качества тестовой модели проекта '{project.name}'.\n"
+        "Сформируй итоговую сводку:\n"
+        "1) общая оценка модели 1-10;\n"
+        "2) главные риски покрытия;\n"
+        "3) топ-10 приоритетных улучшений;\n"
+        "4) краткий вывод по негативным проверкам.\n"
+        "Пиши на русском, структурированно.\n\n"
+        f"{chr(10).join(blocks)}"
+    )
+
+
+def _chunked(items: list, size: int):
+    for i in range(0, len(items), size):
+        yield items[i : i + size]
+
+
+def _is_input_token_overflow_error(error_message: str | None) -> bool:
+    if not error_message:
+        return False
+    lower = error_message.lower()
+    return "number of input tokens" in lower or "input tokens must be no more than" in lower
 
 
 def _build_traceability_quality_fallback(
