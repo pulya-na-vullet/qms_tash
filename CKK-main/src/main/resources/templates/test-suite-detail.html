@@ -181,14 +181,17 @@
         }
         #testCasesList {
             min-height: 0;
-            display: block;
-            overflow: visible;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
         }
         #testCasesContainer {
+            flex: 1 1 auto;
             min-height: 0;
             height: auto;
             max-height: none;
-            overflow: visible;
+            overflow-y: auto;
+            overscroll-behavior-y: contain;
         }
         .workspace-row {
             height: auto;
@@ -947,11 +950,28 @@
         return score.toFixed(1);
     }
 
-    // Поддерживаем естественную высоту колонок без внутреннего скролла.
+    // Ограничиваем высоту левого списка по правому блоку.
     function syncWorkspaceHeight() {
-        const workspaceRow = document.querySelector('.workspace-row');
-        if (!workspaceRow) return;
-        workspaceRow.style.removeProperty('--workspace-height');
+        const listContainer = document.getElementById('testCasesContainer');
+        const leftCard = document.querySelector('.workspace-row .col-md-4 .card');
+        const rightCard = document.querySelector('.workspace-row .detail-card');
+        if (!listContainer || !leftCard || !rightCard) return;
+
+        if (window.matchMedia('(max-width: 991.98px)').matches) {
+            listContainer.style.maxHeight = 'none';
+            listContainer.style.overflowY = 'visible';
+            return;
+        }
+
+        const rightHeight = Math.ceil(rightCard.getBoundingClientRect().height);
+        const leftHeader = leftCard.querySelector('.card-header');
+        const leftSearch = leftCard.querySelector('.p-3.border-bottom');
+        const headerHeight = leftHeader ? Math.ceil(leftHeader.getBoundingClientRect().height) : 0;
+        const searchHeight = leftSearch ? Math.ceil(leftSearch.getBoundingClientRect().height) : 0;
+        const listHeight = Math.max(220, rightHeight - headerHeight - searchHeight);
+
+        listContainer.style.maxHeight = `${listHeight}px`;
+        listContainer.style.overflowY = 'auto';
     }
 
     // Загрузка страницы
@@ -1474,6 +1494,7 @@
         initializeCommentSortHandlers();
         // Загружаем AI ревью
         loadTestCaseReview(testCase.id);
+        requestAnimationFrame(syncWorkspaceHeight);
     }
 
     // Функция для обновления URL с ID тест-кейса
@@ -1679,6 +1700,7 @@
                     </div>
                 `).join('');
                 addTestCaseClickHandlers();
+                requestAnimationFrame(syncWorkspaceHeight);
             })
             .catch(error => {
                 console.error('Ошибка загрузки тест-кейсов:', error);
@@ -2554,6 +2576,7 @@
         initializeEditModeHandlers(testCase);
         // Инициализация обработчиков сортировки комментариев в режиме редактирования
         initializeCommentSortHandlers();
+        requestAnimationFrame(syncWorkspaceHeight);
     }
 
     function initializeEditModeHandlers(testCase) {
