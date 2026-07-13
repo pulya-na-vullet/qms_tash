@@ -647,7 +647,7 @@
         updateBackButtonLink(projectId);
         loadProjectTags(projectId);
         loadProjectUserStories(projectId);
-        initializeMatrixRowVirtualization();
+        initializeMatrixVirtualization();
         initializeMatrixPreviews();
         initializeMatrixScrolling();
 
@@ -670,7 +670,7 @@
         });
     });
 
-    function initializeMatrixRowVirtualization() {
+    function initializeMatrixVirtualization() {
         const wrapper = document.getElementById('matrixWrapper');
         if (!wrapper) return;
         const table = wrapper.querySelector('.traceability-table');
@@ -678,7 +678,9 @@
         if (!table || !tbody) return;
 
         const allRows = Array.from(tbody.querySelectorAll('tr.user-story-row'));
-        if (allRows.length < 140) return;
+        const headerRow = table.tHead?.rows?.[0];
+        const headerCells = Array.from(headerRow?.cells || []);
+        const nonStickyColCount = Math.max(headerCells.length - 1, 0);
 
         const headerHeight = table.tHead?.getBoundingClientRect().height || 60;
         const rowHeightSamples = allRows.slice(0, 30).map(row => row.getBoundingClientRect().height).filter(Boolean);
@@ -687,12 +689,23 @@
             : 38;
         const rowHeight = Math.max(Math.round(avgRowHeight), 28);
         const colCount = table.querySelectorAll('thead th').length || 1;
-        const overscan = 14;
-        let renderStart = -1;
-        let renderEnd = -1;
+        const rowOverscan = 14;
+        let rowRenderStart = -1;
+        let rowRenderEnd = -1;
         let frameId = 0;
+        let colRenderStart = -1;
+        let colRenderEnd = -1;
+        let columnMetricsReady = false;
+        let stickyWidth = 180;
+        let colWidths = [];
+        let colPrefix = [0];
+        const colOverscanPx = 360;
 
         wrapper.dataset.totalRows = String(allRows.length);
+
+        if (allRows.length < 140 && nonStickyColCount < 120) {
+            return;
+        }
 
         const topSpacer = document.createElement('tr');
         topSpacer.className = 'virtual-spacer-row';
@@ -702,18 +715,109 @@
         bottomSpacer.className = 'virtual-spacer-row';
         bottomSpacer.innerHTML = `<td colspan="${colCount}" style="height:0px"></td>`;
 
+        const ensureColumnMetrics = () => {
+            if (columnMetricsReady) return;
+            stickyWidth = Math.max(Math.round(headerCells[0]?.getBoundingClientRect().width || 180), 120);
+            colWidths = [];
+            for (let i = 1; i < headerCells.length; i += 1) {
+                const width = Math.max(Math.round(headerCells[i].getBoundingClientRect().width || 70), 36);
+                colWidths.push(width);
+            }
+            colPrefix = [0];
+            for (let i = 0; i < colWidths.length; i += 1) {
+                colPrefix.push(colPrefix[i] + colWidths[i]);
+            }
+            columnMetricsReady = true;
+        };
+
+        const findColumnIndexByOffset = (offset) => {
+            let left = 0;
+            let right = colPrefix.length - 2;
+            let answer = Math.max(colPrefix.length - 2, 0);
+            while (left <= right) {
+                const mid = (left + right) >> 1;
+                if (colPrefix[mid + 1] >= offset) {
+                    answer = mid;
+                    right = mid - 1;
+                } else {
+                    left = mid + 1;
+                }
+            }
+            return answer;
+        };
+
+        const toggleColumnRange = (fromCol, toCol, visible) => {
+            if (fromCol > toCol) return;
+            const displayValue = visible ? '' : 'none';
+            const fromCellIndex = fromCol + 1;
+            const toCellIndex = toCol + 1;
+
+            for (let cellIndex = fromCellIndex; cellIndex <= toCellIndex; cellIndex += 1) {
+                if (headerCells[cellIndex]) {
+                    headerCells[cellIndex].style.display = displayValue;
+                }
+            }
+
+            tbody.querySelectorAll('tr.user-story-row').forEach(row => {
+                for (let cellIndex = fromCellIndex; cellIndex <= toCellIndex; cellIndex += 1) {
+                    if (row.cells[cellIndex]) {
+                        row.cells[cellIndex].style.display = displayValue;
+                    }
+                }
+            });
+        };
+
+        const applyColumnWindow = (fullRefresh = false) => {
+            ensureColumnMetrics();
+            if (!colWidths.length) return;
+            const effectiveViewportWidth = Math.max(wrapper.clientWidth - stickyWidth, 80);
+            const leftPx = Math.max(wrapper.scrollLeft - colOverscanPx, 0);
+            const rightPx = wrapper.scrollLeft + effectiveViewportWidth + colOverscanPx;
+
+            const nextStart = Math.max(findColumnIndexByOffset(leftPx), 0);
+            const nextEnd = Math.min(findColumnIndexByOffset(rightPx) + 1, colWidths.length);
+
+            if (!fullRefresh && nextStart === colRenderStart && nextEnd === colRenderEnd) {
+                return;
+            }
+
+            if (fullRefresh || colRenderStart < 0 || colRenderEnd < 0) {
+                toggleColumnRange(0, colWidths.length - 1, false);
+                toggleColumnRange(nextStart, nextEnd - 1, true);
+            } else {
+                if (nextStart > colRenderStart) {
+                    toggleColumnRange(colRenderStart, nextStart - 1, false);
+                }
+                if (nextStart < colRenderStart) {
+                    toggleColumnRange(nextStart, colRenderStart - 1, true);
+                }
+                if (nextEnd < colRenderEnd) {
+                    toggleColumnRange(nextEnd, colRenderEnd - 1, false);
+                }
+                if (nextEnd > colRenderEnd) {
+                    toggleColumnRange(colRenderEnd, nextEnd - 1, true);
+                }
+            }
+
+            colRenderStart = nextStart;
+            colRenderEnd = nextEnd;
+        };
+
         const renderWindow = () => {
             frameId = 0;
             const scrollTop = wrapper.scrollTop;
             const viewportHeight = wrapper.clientHeight;
             const relativeTop = Math.max(scrollTop - headerHeight, 0);
-            const start = Math.max(Math.floor(relativeTop / rowHeight) - overscan, 0);
-            const visibleRows = Math.ceil((viewportHeight + headerHeight) / rowHeight) + overscan * 2;
+            const start = Math.max(Math.floor(relativeTop / rowHeight) - rowOverscan, 0);
+            const visibleRows = Math.ceil((viewportHeight + headerHeight) / rowHeight) + rowOverscan * 2;
             const end = Math.min(start + visibleRows, allRows.length);
 
-            if (start === renderStart && end === renderEnd) return;
-            renderStart = start;
-            renderEnd = end;
+            if (start === rowRenderStart && end === rowRenderEnd) {
+                applyColumnWindow(false);
+                return;
+            }
+            rowRenderStart = start;
+            rowRenderEnd = end;
 
             const fragment = document.createDocumentFragment();
             topSpacer.firstElementChild.style.height = `${start * rowHeight}px`;
@@ -724,6 +828,7 @@
             bottomSpacer.firstElementChild.style.height = `${Math.max((allRows.length - end) * rowHeight, 0)}px`;
             fragment.appendChild(bottomSpacer);
             tbody.replaceChildren(fragment);
+            applyColumnWindow(true);
         };
 
         const scheduleRender = () => {
