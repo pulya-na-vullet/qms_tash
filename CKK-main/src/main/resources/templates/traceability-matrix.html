@@ -154,6 +154,14 @@
             overflow: auto;
             font-size: 0.9rem;
         }
+        .us-tc-list-btn {
+            float: right;
+            margin-left: 8px;
+            padding: 2px 8px;
+            font-size: 11px;
+            line-height: 1.2;
+            border-radius: 999px;
+        }
 
         .user-story-header {
             padding: 15px 10px;
@@ -655,6 +663,26 @@
     </div>
 </div>
 
+<!-- Модальное окно списка ТК для выбранной US -->
+<div class="modal fade" id="usTcListModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="usTcListModalTitle">
+                    <i class="fas fa-link me-2"></i>Пересечения US ↔ ТК
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="usTcListModalBody">
+                <div class="text-muted">Загрузка...</div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Скрытое поле для projectId -->
 <div id="projectData" data-project-id="{{ project.id }}" style="display: none;"></div>
 
@@ -882,6 +910,26 @@
         const clearBtn = document.getElementById('clearUsFocusBtn');
         const table = wrapper?.querySelector('.traceability-table');
         if (!wrapper || !panel || !panelTitle || !panelList || !clearBtn || !table) return;
+        const usTcModalEl = document.getElementById('usTcListModal');
+        const usTcModalTitleEl = document.getElementById('usTcListModalTitle');
+        const usTcModalBodyEl = document.getElementById('usTcListModalBody');
+        const usTcModal = usTcModalEl ? new bootstrap.Modal(usTcModalEl) : null;
+
+        const getIntersections = (row) => {
+            const intersections = [];
+            const headers = table.querySelectorAll('thead th.test-case-header');
+            const cells = row.querySelectorAll('td');
+            cells.forEach((cell, idx) => {
+                if (idx === 0) return;
+                if (!cell.classList.contains('linked-cell')) return;
+                const th = headers[idx - 1];
+                const tcLink = th?.querySelector('.rotated-link');
+                const tcId = tcLink?.dataset?.testCaseId || idx;
+                const tcLabel = tcLink?.textContent?.trim() || `TC-${tcId}`;
+                intersections.push({ id: tcId, label: tcLabel });
+            });
+            return intersections;
+        };
 
         const applyColumnFilter = () => {
             const headerCells = table.querySelectorAll('thead th.test-case-header');
@@ -904,18 +952,7 @@
             const usText = usCell?.textContent?.trim() || 'Выбрана US';
             panelTitle.textContent = usText;
 
-            const intersections = [];
-            const headers = table.querySelectorAll('thead th.test-case-header');
-            const cells = row.querySelectorAll('td');
-            cells.forEach((cell, idx) => {
-                if (idx === 0) return;
-                if (!cell.classList.contains('linked-cell')) return;
-                const th = headers[idx - 1];
-                const tcLink = th?.querySelector('.rotated-link');
-                const tcId = tcLink?.dataset?.testCaseId || idx;
-                const tcLabel = tcLink?.textContent?.trim() || `TC-${tcId}`;
-                intersections.push({ id: tcId, label: tcLabel });
-            });
+            const intersections = getIntersections(row);
 
             if (!intersections.length) {
                 panelList.innerHTML = '<div class="text-muted">Для этой US нет пересечений с ТК</div>';
@@ -925,6 +962,57 @@
                     .join('');
             }
             panel.classList.remove('d-none');
+        };
+
+        const showUsTcModal = (row) => {
+            if (!usTcModal || !usTcModalTitleEl || !usTcModalBodyEl) return;
+            const usCell = row.querySelector('.user-story-cell');
+            const usText = usCell?.textContent?.trim() || 'US';
+            const intersections = getIntersections(row);
+            usTcModalTitleEl.innerHTML = `<i class="fas fa-link me-2"></i>${usText}: пересекающиеся ТК`;
+            if (!intersections.length) {
+                usTcModalBodyEl.innerHTML = '<div class="text-muted">Для этой US нет пересечений с тест-кейсами.</div>';
+            } else {
+                usTcModalBodyEl.innerHTML = `
+                    <div class="mb-2">Найдено пересечений: <strong>${intersections.length}</strong></div>
+                    <div class="d-flex flex-wrap gap-2">
+                        ${intersections.map(tc => `
+                            <button class="btn btn-sm btn-outline-primary open-us-tc-btn" data-test-case-id="${tc.id}">
+                                ${tc.label}
+                            </button>
+                        `).join('')}
+                    </div>
+                `;
+                usTcModalBodyEl.querySelectorAll('.open-us-tc-btn').forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        const tcId = btn.dataset.testCaseId;
+                        if (tcId) {
+                            usTcModal.hide();
+                            openTestCaseModal(tcId);
+                        }
+                    });
+                });
+            }
+            usTcModal.show();
+        };
+
+        const ensureUsButtons = () => {
+            table.querySelectorAll('tbody tr.user-story-row').forEach(row => {
+                const usCell = row.querySelector('.user-story-cell');
+                if (!usCell) return;
+                if (usCell.querySelector('.us-tc-list-btn')) return;
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'btn btn-outline-primary us-tc-list-btn';
+                btn.innerHTML = '<i class="fas fa-list-ul me-1"></i>ТК';
+                btn.title = 'Список пересекающихся тест-кейсов';
+                btn.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    showUsTcModal(row);
+                });
+                usCell.prepend(btn);
+            });
         };
 
         wrapper.addEventListener('click', (e) => {
@@ -952,11 +1040,13 @@
         });
 
         const observer = new MutationObserver(() => {
+            ensureUsButtons();
             if (activeUsColumnFilter) {
                 applyColumnFilter();
             }
         });
         observer.observe(table.querySelector('tbody'), { childList: true, subtree: true });
+        ensureUsButtons();
     }
 
     function initializeMatrixScrolling() {
