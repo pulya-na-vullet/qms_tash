@@ -108,6 +108,29 @@
             border-collapse: collapse;
             font-size: 14px;
         }
+        .matrix-wrapper.performance-mode .user-story-header,
+        .matrix-wrapper.performance-mode .user-story-cell {
+            position: static !important;
+            left: auto !important;
+        }
+        .matrix-wrapper.performance-mode .rotated-link[data-bs-toggle="popover"] {
+            pointer-events: none;
+            opacity: 0.9;
+        }
+        .matrix-wrapper.performance-mode::before {
+            content: "Режим производительности: превью и sticky-колонка отключены";
+            position: sticky;
+            top: 0;
+            display: block;
+            z-index: 60;
+            margin: -8px 0 8px 0;
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            color: #664d03;
+            background: #fff3cd;
+            border: 1px solid #ffecb5;
+        }
 
         .user-story-header {
             padding: 15px 10px;
@@ -659,9 +682,16 @@
         let startScrollTop = 0;
         let syncLock = false;
         let movedWhileDragging = false;
+        let rafScheduled = false;
+        let performanceModeEnabled = false;
 
         const hasHorizontalOverflow = () => table.scrollWidth > wrapper.clientWidth + 2;
         const hasVerticalOverflow = () => table.scrollHeight > wrapper.clientHeight + 2;
+        const matrixCellCount = () => {
+            const rows = table.querySelectorAll('tbody tr').length;
+            const cols = table.querySelectorAll('thead th').length;
+            return rows * cols;
+        };
 
         const updateMiniMap = () => {
             const mmWidth = miniMap.clientWidth;
@@ -680,6 +710,19 @@
             miniViewport.style.height = `${Math.min(viewHeight, mmHeight)}px`;
         };
 
+        const scheduleViewportSync = () => {
+            if (rafScheduled) return;
+            rafScheduled = true;
+            requestAnimationFrame(() => {
+                rafScheduled = false;
+                if (syncLock) return;
+                syncLock = true;
+                topScroll.scrollLeft = wrapper.scrollLeft;
+                syncLock = false;
+                updateMiniMap();
+            });
+        };
+
         const updateTopScrollbar = () => {
             const overflow = hasHorizontalOverflow();
             const overflowAny = overflow || hasVerticalOverflow();
@@ -693,13 +736,7 @@
             updateMiniMap();
         };
 
-        wrapper.addEventListener('scroll', () => {
-            if (syncLock) return;
-            syncLock = true;
-            topScroll.scrollLeft = wrapper.scrollLeft;
-            syncLock = false;
-            updateMiniMap();
-        });
+        wrapper.addEventListener('scroll', scheduleViewportSync, { passive: true });
 
         topScroll.addEventListener('scroll', () => {
             if (syncLock) return;
@@ -766,10 +803,16 @@
             const targetTop = (y / rect.height) * table.scrollHeight - (wrapper.clientHeight / 2);
             wrapper.scrollLeft = Math.max(0, Math.min(targetLeft, table.scrollWidth - wrapper.clientWidth));
             wrapper.scrollTop = Math.max(0, Math.min(targetTop, table.scrollHeight - wrapper.clientHeight));
-            updateMiniMap();
+            scheduleViewportSync();
         });
 
+        if (matrixCellCount() > 24000) {
+            performanceModeEnabled = true;
+            wrapper.classList.add('performance-mode');
+        }
+
         updateTopScrollbar();
+        scheduleViewportSync();
         window.addEventListener('resize', updateTopScrollbar);
     }
 
@@ -876,6 +919,10 @@
     }
 
     function initializeMatrixPreviews() {
+        const wrapper = document.getElementById('matrixWrapper');
+        if (wrapper && wrapper.classList.contains('performance-mode')) {
+            return;
+        }
         const instances = new WeakMap();
         let activeElement = null;
         let hideTimeoutId = null;
