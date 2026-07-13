@@ -360,6 +360,40 @@ class TraceabilityAIReview(TimestampedModel):
         ordering = ("-reviewed_at",)
 
 
+class TestSuiteAIReviewJob(TimestampedModel):
+    class Status(models.TextChoices):
+        IDLE = "IDLE"
+        RUNNING = "RUNNING"
+        COMPLETED = "COMPLETED"
+        FAILED = "FAILED"
+
+    test_suite = models.OneToOneField(
+        TestSuite,
+        on_delete=models.CASCADE,
+        related_name="ai_review_job",
+    )
+    status = models.CharField(max_length=32, choices=Status.choices, default=Status.IDLE)
+    queue_case_ids = models.JSONField(default=list)
+    total_cases = models.IntegerField(default=0)
+    processed_cases = models.IntegerField(default=0)
+    success_cases = models.IntegerField(default=0)
+    failed_cases = models.IntegerField(default=0)
+    started_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="started_ai_review_jobs",
+    )
+    started_at = models.DateTimeField(null=True, blank=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+    last_error = models.TextField(null=True, blank=True)
+
+    class Meta:
+        db_table = "test_suite_ai_review_jobs"
+        ordering = ("-updated_at",)
+
+
 class AIProviderSettings(TimestampedModel):
     class Provider(models.TextChoices):
         YANDEX_GPT = "YANDEX_GPT"

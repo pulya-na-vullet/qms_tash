@@ -1,6 +1,7 @@
 import json
 
 from django.db.models import Q
+from django.db import transaction
 from django.http import JsonResponse as DjangoJsonResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -17,6 +18,7 @@ from .models import (
     TestCaseUserStory,
     TestRun,
     TestRunTestCase,
+    TestSuiteAIReviewJob,
     TestStep,
     TestSuite,
     TraceabilityMatrix,
@@ -116,6 +118,28 @@ def _is_admin_user(core_user):
     if not core_user:
         return False
     return "ADMIN" in (core_user.roles or [])
+
+
+def _serialize_ai_review_job(job: TestSuiteAIReviewJob):
+    percent = 0.0
+    if job.total_cases:
+        percent = round((job.processed_cases * 100.0) / job.total_cases, 2)
+    return {
+        "id": job.id,
+        "test_suite_id": job.test_suite_id,
+        "status": job.status,
+        "total_cases": job.total_cases,
+        "processed_cases": job.processed_cases,
+        "success_cases": job.success_cases,
+        "failed_cases": job.failed_cases,
+        "remaining_cases": len(job.queue_case_ids or []),
+        "progress_percent": percent,
+        "started_by_id": job.started_by_id,
+        "started_by_name": job.started_by.full_name if job.started_by else None,
+        "started_at": job.started_at,
+        "finished_at": job.finished_at,
+        "last_error": job.last_error,
+    }
 
 
 @require_http_methods(["GET"])
@@ -929,12 +953,99 @@ def ai_analysis_run(request, test_suite_id):
 @csrf_exempt
 @require_http_methods(["POST"])
 def ai_review_suite(request, test_suite_id):
-    reviews = []
-    for case_id in TestCase.objects.filter(test_suite_id=test_suite_id).values_list("id", flat=True):
-        review = create_or_update_review(case_id)
+    core_user = _resolve_core_user(request)
+    if not core_user:
+        return JsonResponse(build_api_response(False, "Нужна авторизация"), status=403)
+
+    case_ids = list(TestCase.objects.filter(test_suite_id=test_suite_id).values_list("id", flat=True).order_by("id"))
+    if not case_ids:
+        return JsonResponse(build_api_response(False, "В тест-сьюте нет тест-кейсов"))
+
+    with transaction.atomic():
+        job, _ = TestSuiteAIReviewJob.objects.select_for_update().get_or_create(test_suite_id=test_suite_id)
+        if job.status == TestSuiteAIReviewJob.Status.RUNNING:
+            owner = job.started_by.full_name if job.started_by else "другой пользователь"
+            return JsonResponse(
+                build_api_response(
+                    False,
+                    f"Ревью уже запущено ({owner}). Дождитесь завершения.",
+                    job=_serialize_ai_review_job(job),
+                ),
+                status=409,
+            )
+        job.status = TestSuiteAIReviewJob.Status.RUNNING
+        job.queue_case_ids = case_ids
+        job.total_cases = len(case_ids)
+        job.processed_cases = 0
+        job.success_cases = 0
+        job.failed_cases = 0
+        job.started_by = core_user
+        job.started_at = timezone.now()
+        job.finished_at = None
+        job.last_error = None
+        job.save()
+    return JsonResponse(build_api_response(True, "Очередь AI-ревью сформирована", job=_serialize_ai_review_job(job)))
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def ai_review_suite_queue_next(request, test_suite_id):
+    core_user = _resolve_core_user(request)
+    if not core_user:
+        return JsonResponse(build_api_response(False, "Нужна авторизация"), status=403)
+
+    with transaction.atomic():
+        job = TestSuiteAIReviewJob.objects.select_for_update().filter(test_suite_id=test_suite_id).first()
+        if not job or job.status != TestSuiteAIReviewJob.Status.RUNNING:
+            return JsonResponse(build_api_response(False, "Очередь ревью не запущена"), status=409)
+
+        if not job.queue_case_ids:
+            job.status = TestSuiteAIReviewJob.Status.COMPLETED
+            job.finished_at = timezone.now()
+            job.save(update_fields=["status", "finished_at", "updated_at"])
+            return JsonResponse(
+                build_api_response(True, "Ревью завершено", completed=True, job=_serialize_ai_review_job(job))
+            )
+
+        case_id = int(job.queue_case_ids[0])
+        job.queue_case_ids = job.queue_case_ids[1:]
+        job.save(update_fields=["queue_case_ids", "updated_at"])
+
+    # Run review outside lock/transaction to reduce lock time.
+    review = create_or_update_review(case_id)
+
+    with transaction.atomic():
+        job = TestSuiteAIReviewJob.objects.select_for_update().get(test_suite_id=test_suite_id)
+        job.processed_cases += 1
         if review:
-            reviews.append(review)
-    return JsonResponse(build_api_response(True, f"AI ревью завершено для {len(reviews)} тест-кейсов", reviews=TestCaseReviewSerializer(reviews, many=True).data))
+            job.success_cases += 1
+        else:
+            job.failed_cases += 1
+            job.last_error = f"Не удалось выполнить ревью для TC-{case_id}"
+
+        completed = not job.queue_case_ids
+        if completed:
+            job.status = TestSuiteAIReviewJob.Status.COMPLETED
+            job.finished_at = timezone.now()
+        job.save()
+
+    return JsonResponse(
+        build_api_response(
+            True,
+            "Шаг очереди выполнен",
+            completed=completed,
+            review=TestCaseReviewSerializer(review).data if review else None,
+            job=_serialize_ai_review_job(job),
+        )
+    )
+
+
+@require_http_methods(["GET"])
+def ai_review_suite_queue_status(request, test_suite_id):
+    job = TestSuiteAIReviewJob.objects.filter(test_suite_id=test_suite_id).first()
+    if not job:
+        return JsonResponse(build_api_response(False, "Очередь не найдена"), status=404)
+    return JsonResponse(build_api_response(True, job=_serialize_ai_review_job(job)))
 
 
 @csrf_exempt

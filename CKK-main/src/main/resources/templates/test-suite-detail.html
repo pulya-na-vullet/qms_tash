@@ -638,6 +638,12 @@
                                 <i class="fas fa-robot me-2"></i>
                                 Запустить ревью тест-кейсов
                             </button>
+                            <div class="mt-2 d-none" id="aiReviewProgressWrap">
+                                <div class="progress" style="height: 10px;">
+                                    <div class="progress-bar bg-warning" id="aiReviewProgressBar" role="progressbar" style="width: 0%"></div>
+                                </div>
+                                <small class="text-muted d-block mt-1" id="aiReviewProgressText">0 / 0</small>
+                            </div>
                         </div>
                         <div class="col-md-3 mb-3">
                             <button class="btn btn-outline-info w-100 ai-analysis-btn" id="aiAnalysisBtn">
@@ -858,39 +864,99 @@
     // Инициализация обработчика AI ревью
     function initializeAIReviewHandler() {
         const runAIReviewBtn = document.getElementById('runAIReviewBtn');
-        runAIReviewBtn.addEventListener('click', function() {
-            const testSuiteId = testSuiteData.id;
-            if (confirm('Запустить AI ревью для всех тест-кейсов в сьюте? Это может занять несколько минут.')) {
-                runAIReviewBtn.disabled = true;
-                runAIReviewBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Выполняется ревью...';
+        const progressWrap = document.getElementById('aiReviewProgressWrap');
+        const progressBar = document.getElementById('aiReviewProgressBar');
+        const progressText = document.getElementById('aiReviewProgressText');
+        let queueRunning = false;
 
-                fetch(`/api/test-suites/${testSuiteId}/ai-test-case-review`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
+        const updateProgressUI = (job) => {
+            if (!job) return;
+            progressWrap.classList.remove('d-none');
+            progressBar.style.width = `${job.progressPercent || 0}%`;
+            progressText.textContent = `${job.processedCases || 0} / ${job.totalCases || 0} (успех: ${job.successCases || 0}, ошибки: ${job.failedCases || 0})`;
+            if (job.status === 'RUNNING') {
+                runAIReviewBtn.disabled = true;
+                const ownerInfo = job.startedByName ? ` (${job.startedByName})` : '';
+                runAIReviewBtn.innerHTML = `<i class="fas fa-spinner fa-spin me-2"></i>Ревью выполняется${ownerInfo}`;
+            } else {
+                runAIReviewBtn.disabled = false;
+                runAIReviewBtn.innerHTML = '<i class="fas fa-robot me-2"></i>Запустить ревью тест-кейсов';
+            }
+        };
+
+        const pollStatus = () => {
+            const testSuiteId = testSuiteData.id;
+            fetch(`/api/test-suites/${testSuiteId}/ai-test-case-review/status`)
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success && data.job) {
+                        updateProgressUI(data.job);
                     }
                 })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.success) {
-                            showMessage(data.message, 'success');
-                            if (currentTestCaseData) {
-                                loadTestCaseDetail(currentTestCaseData.id);
-                            }
-                        } else {
-                            showMessage(data.message, 'danger');
-                        }
-                    })
-                    .catch(error => {
-                        console.error('Ошибка запуска ревью:', error);
-                        showMessage('Ошибка при запуске ревью', 'danger');
-                    })
-                    .finally(() => {
-                        runAIReviewBtn.disabled = false;
-                        runAIReviewBtn.innerHTML = '<i class="fas fa-robot me-2"></i>Запустить ревью тест-кейсов';
+                .catch(() => {});
+        };
+
+        const processQueue = async () => {
+            const testSuiteId = testSuiteData.id;
+            queueRunning = true;
+            while (queueRunning) {
+                let done = false;
+                try {
+                    const response = await fetch(`/api/test-suites/${testSuiteId}/ai-test-case-review/next`, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
                     });
+                    const data = await response.json();
+                    if (!data.success) {
+                        showMessage(data.message || 'Ошибка обработки очереди AI-ревью', 'danger');
+                        done = true;
+                    } else if (data.job) {
+                        updateProgressUI(data.job);
+                        done = Boolean(data.completed);
+                    }
+                } catch (error) {
+                    console.error('Ошибка очереди AI-ревью:', error);
+                    showMessage('Ошибка обработки очереди AI-ревью', 'danger');
+                    done = true;
+                }
+
+                if (done) {
+                    queueRunning = false;
+                    pollStatus();
+                    if (currentTestCaseData) loadTestCaseDetail(currentTestCaseData.id);
+                    break;
+                }
+                // Slight delay keeps UI responsive and shows progress updates.
+                await new Promise(resolve => setTimeout(resolve, 150));
+            }
+        };
+
+        runAIReviewBtn.addEventListener('click', async function() {
+            const testSuiteId = testSuiteData.id;
+            if (!confirm('Запустить AI ревью для всех тест-кейсов в сьюте?')) return;
+            if (queueRunning) return;
+            try {
+                const response = await fetch(`/api/test-suites/${testSuiteId}/ai-test-case-review`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                });
+                const data = await response.json();
+                if (!data.success) {
+                    showMessage(data.message || 'Не удалось запустить очередь AI-ревью', 'danger');
+                    if (data.job) updateProgressUI(data.job);
+                    return;
+                }
+                if (data.job) updateProgressUI(data.job);
+                showMessage(data.message || 'Очередь AI-ревью запущена', 'success');
+                processQueue();
+            } catch (error) {
+                console.error('Ошибка запуска ревью:', error);
+                showMessage('Ошибка при запуске очереди AI-ревью', 'danger');
             }
         });
+
+        pollStatus();
+        setInterval(pollStatus, 5000);
     }
 
     // Функция для загрузки AI ревью тест-кейса

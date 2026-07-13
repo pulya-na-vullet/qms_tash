@@ -39,6 +39,8 @@ urlpatterns = [
     path("api/test-suites/<int:test_suite_id>/test-cases/search", api_views.test_suite_cases_search),
     path("api/test-suites/<int:test_suite_id>/ai-analysis", api_views.ai_analysis_run),
     path("api/test-suites/<int:test_suite_id>/ai-test-case-review", api_views.ai_review_suite),
+    path("api/test-suites/<int:test_suite_id>/ai-test-case-review/next", api_views.ai_review_suite_queue_next),
+    path("api/test-suites/<int:test_suite_id>/ai-test-case-review/status", api_views.ai_review_suite_queue_status),
     path("api/test-suites/<int:test_suite_id>/ai-reviews", api_views.ai_review_suite_get),
     path("api/test-cases/<int:id>", api_views.test_case_item),
     path("api/test-cases/<int:id>/clone", api_views.test_case_clone),
