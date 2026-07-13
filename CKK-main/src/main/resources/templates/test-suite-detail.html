@@ -182,41 +182,45 @@
         #testCasesList {
             flex: 1 1 auto;
             min-height: 0;
-            display: block;
-            overflow: visible;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
         }
         #testCasesContainer {
+            flex: 1 1 auto;
             min-height: 0;
-            height: auto;
-            max-height: none;
-            overflow: visible;
+            height: 0;
+            max-height: 100%;
+            overflow-y: auto;
+            overscroll-behavior-y: contain;
         }
         .workspace-row {
-            height: auto;
-            min-height: 0;
-            align-items: flex-start;
+            height: var(--workspace-height, calc(100vh - 320px));
+            min-height: 520px;
+            align-items: stretch;
         }
         .workspace-row > [class*="col-"] {
-            display: block;
-            height: auto;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
             min-height: 0;
         }
         .workspace-row > [class*="col-"] > .card {
-            flex: none;
-            height: auto;
+            flex: 1 1 auto;
+            height: 100%;
             min-height: 0;
-            margin-bottom: 1.5rem;
+            margin-bottom: 0;
         }
         .detail-card {
-            height: auto;
+            height: 100%;
             display: flex;
             flex-direction: column;
             min-height: 0;
         }
         .detail-card .card-body {
-            flex: none;
-            height: auto;
-            overflow: visible;
+            flex: 1 1 auto;
+            height: 0;
+            overflow-y: auto;
             min-height: 0;
         }
         @media (max-width: 991.98px) {
