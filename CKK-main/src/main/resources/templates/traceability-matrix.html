@@ -472,9 +472,62 @@
             transform: translateY(0);
             box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
         }
+        .render-progress-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 2000;
+            background: rgba(255, 255, 255, 0.96);
+            border-bottom: 1px solid #e9ecef;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+            transition: opacity 0.25s ease;
+        }
+        .render-progress-overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        .render-progress-inner {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 8px 12px 10px 12px;
+        }
+        .render-progress-text {
+            font-size: 12px;
+            color: #495057;
+            margin-bottom: 6px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+        }
+        .render-progress-track {
+            height: 8px;
+            background: #e9ecef;
+            border-radius: 999px;
+            overflow: hidden;
+        }
+        .render-progress-bar {
+            height: 100%;
+            width: 0;
+            border-radius: 999px;
+            background: linear-gradient(90deg, #4f7cff, #6f42c1);
+            transition: width 0.18s ease;
+        }
     </style>
 </head>
 <body data-user-role="{{ userRole }}" data-current-user-id="{{ currentUserId }}">
+<div class="render-progress-overlay" id="renderProgressOverlay">
+    <div class="render-progress-inner">
+        <div class="render-progress-text">
+            <span id="renderProgressLabel">Подготовка матрицы…</span>
+            <strong id="renderProgressValue">0%</strong>
+        </div>
+        <div class="render-progress-track">
+            <div class="render-progress-bar" id="renderProgressBar"></div>
+        </div>
+    </div>
+</div>
 <div class="container py-4">
     <!-- Кнопка возврата -->
     <div class="row mb-4">
@@ -700,6 +753,50 @@
     const currentUserRole = document.body.dataset.userRole || '';
     const currentUserId = Number(document.body.dataset.currentUserId || 0) || null;
     let activeUsColumnFilter = null;
+    let renderProgressValue = 0;
+    let renderProgressTimer = null;
+
+    function setRenderProgress(value, label) {
+        const overlay = document.getElementById('renderProgressOverlay');
+        const bar = document.getElementById('renderProgressBar');
+        const valueEl = document.getElementById('renderProgressValue');
+        const labelEl = document.getElementById('renderProgressLabel');
+        if (!overlay || !bar || !valueEl || !labelEl) return;
+        renderProgressValue = Math.max(renderProgressValue, Math.min(value, 100));
+        bar.style.width = `${renderProgressValue}%`;
+        valueEl.textContent = `${Math.round(renderProgressValue)}%`;
+        if (label) labelEl.textContent = label;
+    }
+
+    function startRenderProgress() {
+        setRenderProgress(8, 'Запуск рендера страницы…');
+        if (renderProgressTimer) clearInterval(renderProgressTimer);
+        renderProgressTimer = setInterval(() => {
+            if (renderProgressValue >= 92) {
+                clearInterval(renderProgressTimer);
+                renderProgressTimer = null;
+                return;
+            }
+            setRenderProgress(renderProgressValue + 2, 'Инициализация элементов матрицы…');
+        }, 180);
+    }
+
+    function finishRenderProgress() {
+        const overlay = document.getElementById('renderProgressOverlay');
+        if (renderProgressTimer) {
+            clearInterval(renderProgressTimer);
+            renderProgressTimer = null;
+        }
+        setRenderProgress(100, 'Рендер матрицы завершён');
+        setTimeout(() => {
+            overlay?.classList.add('hidden');
+            setTimeout(() => overlay?.remove(), 350);
+        }, 220);
+    }
+
+    function nextFrame() {
+        return new Promise(resolve => requestAnimationFrame(() => resolve()));
+    }
 
     function canEditCommentAction(comment) {
         if (!comment || comment.commentType === 'AI_GENERATED') return false;
@@ -707,14 +804,28 @@
         return Boolean(comment.userId) && Number(comment.userId) === currentUserId;
     }
 
-    document.addEventListener('DOMContentLoaded', function () {
+    startRenderProgress();
+    setTimeout(() => setRenderProgress(25, 'Получение данных проекта…'), 80);
+
+    document.addEventListener('DOMContentLoaded', async function () {
         const projectId = document.getElementById('projectData').dataset.projectId;
+        setRenderProgress(35, 'Настройка навигации и справочников…');
         updateBackButtonLink(projectId);
         loadProjectTags(projectId);
+        await nextFrame();
+        setRenderProgress(50, 'Виртуализация матрицы…');
         initializeMatrixVirtualization();
+        await nextFrame();
+        setRenderProgress(65, 'Настройка фильтров по US…');
         initializeUsFocusMode();
+        await nextFrame();
+        setRenderProgress(78, 'Подготовка превью ТК…');
         initializeMatrixPreviews();
+        await nextFrame();
+        setRenderProgress(90, 'Финализация скроллинга и миникарты…');
         initializeMatrixScrolling();
+        await nextFrame();
+        finishRenderProgress();
 
         document.addEventListener('click', function (e) {
             const link = e.target.closest('.rotated-link');
