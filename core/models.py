@@ -394,6 +394,56 @@ class TestSuiteAIReviewJob(TimestampedModel):
         ordering = ("-updated_at",)
 
 
+class AIActivityLog(TimestampedModel):
+    class ActionType(models.TextChoices):
+        REVIEW_TEST_CASE = "REVIEW_TEST_CASE"
+        REVIEW_TEST_SUITE = "REVIEW_TEST_SUITE"
+        ANALYZE_TEST_SUITE = "ANALYZE_TEST_SUITE"
+
+    class Status(models.TextChoices):
+        SUCCESS = "SUCCESS"
+        FAILED = "FAILED"
+        RUNNING = "RUNNING"
+
+    action_type = models.CharField(max_length=64, choices=ActionType.choices)
+    status = models.CharField(max_length=32, choices=Status.choices, default=Status.SUCCESS)
+    message = models.TextField(blank=True, null=True)
+    initiated_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="ai_activity_logs",
+    )
+    project = models.ForeignKey(
+        Project,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="ai_activity_logs",
+    )
+    test_suite = models.ForeignKey(
+        TestSuite,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="ai_activity_logs",
+    )
+    test_case = models.ForeignKey(
+        TestCase,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="ai_activity_logs",
+    )
+    started_at = models.DateTimeField(default=timezone.now)
+    finished_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "ai_activity_logs"
+        ordering = ("-started_at", "-id")
+
+
 class AIProviderSettings(TimestampedModel):
     class Provider(models.TextChoices):
         YANDEX_GPT = "YANDEX_GPT"

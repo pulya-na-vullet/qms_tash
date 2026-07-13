@@ -10,7 +10,7 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_POST
 from functools import wraps
 
-from .models import AIProviderSettings, Project, Section, TestRun, TestSuite, TraceabilityMatrix, User as CoreUser
+from .models import AIActivityLog, AIProviderSettings, Project, Section, TestRun, TestSuite, TraceabilityMatrix, User as CoreUser
 from .serializers import TestRunSerializer, TestSuiteSerializer
 from .services import calculate_traceability_metrics, generate_and_store_matrix
 
@@ -375,6 +375,26 @@ def admin_ai_settings_page(request):
         {
             "providerSettings": settings_obj,
             "maskedApiKey": masked_api_key,
+        },
+    )
+
+
+@role_required(ROLE_ADMIN)
+def admin_ai_activity_page(request):
+    logs = list(
+        AIActivityLog.objects.select_related("initiated_by", "project", "test_suite", "test_case")
+        .all()
+        .order_by("-started_at", "-id")[:300]
+    )
+    return render(
+        request,
+        "admin/ai-activity.html",
+        {
+            "logs": logs,
+            "totalLogs": len(logs),
+            "successLogs": sum(1 for row in logs if row.status == AIActivityLog.Status.SUCCESS),
+            "failedLogs": sum(1 for row in logs if row.status == AIActivityLog.Status.FAILED),
+            "runningLogs": sum(1 for row in logs if row.status == AIActivityLog.Status.RUNNING),
         },
     )
 

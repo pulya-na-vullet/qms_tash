@@ -9,6 +9,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
 from .models import (
+    AIActivityLog,
     Comment,
     Project,
     Section,
@@ -140,6 +141,28 @@ def _serialize_ai_review_job(job: TestSuiteAIReviewJob):
         "finished_at": job.finished_at,
         "last_error": job.last_error,
     }
+
+
+def _create_ai_activity_log(
+    *,
+    action_type: str,
+    status: str,
+    initiated_by=None,
+    project=None,
+    test_suite=None,
+    test_case=None,
+    message: str | None = None,
+):
+    return AIActivityLog.objects.create(
+        action_type=action_type,
+        status=status,
+        initiated_by=initiated_by,
+        project=project,
+        test_suite=test_suite,
+        test_case=test_case,
+        message=message,
+        started_at=timezone.now(),
+    )
 
 
 @require_http_methods(["GET"])
@@ -947,7 +970,22 @@ def test_runs_search(request, project_id):
 @csrf_exempt
 @require_http_methods(["POST"])
 def ai_analysis_run(request, test_suite_id):
-    return JsonResponse(run_ai_test_suite_analysis(test_suite_id))
+    core_user = _resolve_core_user(request)
+    test_suite = TestSuite.objects.select_related("project").filter(id=test_suite_id).first()
+    activity = _create_ai_activity_log(
+        action_type=AIActivityLog.ActionType.ANALYZE_TEST_SUITE,
+        status=AIActivityLog.Status.RUNNING,
+        initiated_by=core_user,
+        project=test_suite.project if test_suite else None,
+        test_suite=test_suite,
+        message="Запуск AI-анализа тест-сьюта",
+    )
+    result = run_ai_test_suite_analysis(test_suite_id)
+    activity.status = AIActivityLog.Status.SUCCESS if result.get("success") else AIActivityLog.Status.FAILED
+    activity.message = result.get("message") or activity.message
+    activity.finished_at = timezone.now()
+    activity.save(update_fields=["status", "message", "finished_at", "updated_at"])
+    return JsonResponse(result)
 
 
 @csrf_exempt
@@ -957,14 +995,31 @@ def ai_review_suite(request, test_suite_id):
     if not core_user:
         return JsonResponse(build_api_response(False, "Нужна авторизация"), status=403)
 
+    test_suite = TestSuite.objects.select_related("project").filter(id=test_suite_id).first()
     case_ids = list(TestCase.objects.filter(test_suite_id=test_suite_id).values_list("id", flat=True).order_by("id"))
     if not case_ids:
+        _create_ai_activity_log(
+            action_type=AIActivityLog.ActionType.REVIEW_TEST_SUITE,
+            status=AIActivityLog.Status.FAILED,
+            initiated_by=core_user,
+            project=test_suite.project if test_suite else None,
+            test_suite=test_suite,
+            message="Запуск ревью отклонен: в тест-сьюте нет тест-кейсов",
+        )
         return JsonResponse(build_api_response(False, "В тест-сьюте нет тест-кейсов"))
 
     with transaction.atomic():
         job, _ = TestSuiteAIReviewJob.objects.select_for_update().get_or_create(test_suite_id=test_suite_id)
         if job.status == TestSuiteAIReviewJob.Status.RUNNING:
             owner = job.started_by.full_name if job.started_by else "другой пользователь"
+            _create_ai_activity_log(
+                action_type=AIActivityLog.ActionType.REVIEW_TEST_SUITE,
+                status=AIActivityLog.Status.FAILED,
+                initiated_by=core_user,
+                project=test_suite.project if test_suite else None,
+                test_suite=test_suite,
+                message=f"Запуск ревью отклонен: уже запущено ({owner})",
+            )
             return JsonResponse(
                 build_api_response(
                     False,
@@ -984,6 +1039,14 @@ def ai_review_suite(request, test_suite_id):
         job.finished_at = None
         job.last_error = None
         job.save()
+    _create_ai_activity_log(
+        action_type=AIActivityLog.ActionType.REVIEW_TEST_SUITE,
+        status=AIActivityLog.Status.SUCCESS,
+        initiated_by=core_user,
+        project=test_suite.project if test_suite else None,
+        test_suite=test_suite,
+        message=f"Запущено массовое ревью ({len(case_ids)} тест-кейсов)",
+    )
     return JsonResponse(build_api_response(True, "Очередь AI-ревью сформирована", job=_serialize_ai_review_job(job)))
 
 
@@ -1051,7 +1114,24 @@ def ai_review_suite_queue_status(request, test_suite_id):
 @csrf_exempt
 @require_http_methods(["POST"])
 def ai_review_case(request, test_case_id):
+    core_user = _resolve_core_user(request)
+    test_case = TestCase.objects.select_related("test_suite__project").filter(id=test_case_id).first()
+    activity = _create_ai_activity_log(
+        action_type=AIActivityLog.ActionType.REVIEW_TEST_CASE,
+        status=AIActivityLog.Status.RUNNING,
+        initiated_by=core_user,
+        project=test_case.test_suite.project if test_case and test_case.test_suite else None,
+        test_suite=test_case.test_suite if test_case else None,
+        test_case=test_case,
+        message=f"Запуск ревью TC-{test_case_id}",
+    )
     review = create_or_update_review(test_case_id)
+    activity.status = AIActivityLog.Status.SUCCESS if review else AIActivityLog.Status.FAILED
+    activity.message = (
+        f"AI ревью завершено для TC-{test_case_id}" if review else f"AI ревью не выполнено для TC-{test_case_id}"
+    )
+    activity.finished_at = timezone.now()
+    activity.save(update_fields=["status", "message", "finished_at", "updated_at"])
     if not review:
         return JsonResponse(build_api_response(False, "Тест-кейс не найден"))
     return JsonResponse(build_api_response(True, "AI ревью завершено", review=TestCaseReviewSerializer(review).data))
