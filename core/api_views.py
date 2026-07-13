@@ -2,6 +2,7 @@ import json
 
 from django.db.models import Q
 from django.db import transaction
+from django.http import HttpResponse
 from django.http import JsonResponse as DjangoJsonResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -1219,6 +1220,63 @@ def traceability_ai_quality(request, project_id):
     force_refresh = request.method == "POST"
     result = analyze_traceability_model_quality(project_id, force_refresh=force_refresh)
     return JsonResponse(result, status=200 if result.get("success") else 400)
+
+
+@require_http_methods(["GET"])
+def traceability_matrix_export_excel(request, project_id):
+    project = Project.objects.filter(id=project_id).first()
+    if not project:
+        return JsonResponse(build_api_response(False, "Проект не найден"), status=404)
+
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font, PatternFill
+    from openpyxl.utils import get_column_letter
+
+    user_stories = UserStory.objects.filter(section__project_id=project_id).order_by("id")
+    test_cases = TestCase.objects.filter(test_suite__project_id=project_id).order_by("id")
+    links = set(
+        TestCaseUserStory.objects.filter(
+            test_case_id__in=test_cases.values_list("id", flat=True),
+            user_story_id__in=user_stories.values_list("id", flat=True),
+        ).values_list("test_case_id", "user_story_id")
+    )
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Coverage Matrix"
+
+    header_fill = PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")
+    header_font = Font(color="FFFFFF", bold=True)
+    center_alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+
+    ws.cell(row=1, column=1, value="User Story \\ Test Case")
+    for col_idx, tc in enumerate(test_cases, start=2):
+        ws.cell(row=1, column=col_idx, value=f"TC-{tc.id}")
+    for col_idx in range(1, len(test_cases) + 2):
+        cell = ws.cell(row=1, column=col_idx)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = center_alignment
+
+    for row_idx, us in enumerate(user_stories, start=2):
+        ws.cell(row=row_idx, column=1, value=f"US-{us.id}: {us.name}")
+        ws.cell(row=row_idx, column=1).alignment = Alignment(vertical="top", wrap_text=True)
+        for col_idx, tc in enumerate(test_cases, start=2):
+            ws.cell(row=row_idx, column=col_idx, value="✓" if (tc.id, us.id) in links else "")
+            ws.cell(row=row_idx, column=col_idx).alignment = center_alignment
+
+    ws.freeze_panes = "B2"
+    ws.column_dimensions["A"].width = 56
+    for col_idx in range(2, len(test_cases) + 2):
+        ws.column_dimensions[get_column_letter(col_idx)].width = 10
+
+    filename = f"coverage-matrix-project-{project_id}.xlsx"
+    response = HttpResponse(
+        content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    response["Content-Disposition"] = f'attachment; filename="{filename}"'
+    wb.save(response)
+    return response
 
 
 @csrf_exempt

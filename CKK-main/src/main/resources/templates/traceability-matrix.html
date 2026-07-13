@@ -136,6 +136,24 @@
             border: none !important;
             background: transparent !important;
         }
+        .user-story-row.selected-us-row td {
+            background-color: #e8f2ff !important;
+        }
+        .us-filter-hidden {
+            display: none !important;
+        }
+        .us-focus-panel {
+            margin: 8px 15px 10px 15px;
+            border: 1px solid #cfe2ff;
+            border-radius: 10px;
+            background: #f4f9ff;
+            padding: 10px 12px;
+        }
+        .us-focus-list {
+            max-height: 96px;
+            overflow: auto;
+            font-size: 0.9rem;
+        }
 
         .user-story-header {
             padding: 15px 10px;
@@ -530,7 +548,10 @@
             </div>
         </div>
         <div class="col-12 mb-2">
-            <div class="d-flex justify-content-end">
+            <div class="d-flex justify-content-end gap-2">
+                <a class="btn btn-outline-light" id="exportExcelBtn" href="/api/projects/{{ project.id }}/traceability-matrix/export-excel">
+                    <i class="fas fa-file-excel me-2"></i>Выгрузить в Excel
+                </a>
                 <button class="btn ai-quality-btn" id="runAiQualityBtn">
                     <i class="fas fa-robot me-2"></i>ИИ-оценка тестовой модели
                 </button>
@@ -548,6 +569,18 @@
                     </div>
                     <div class="matrix-top-scroll d-none" id="matrixTopScroll">
                         <div class="matrix-top-scroll-inner" id="matrixTopScrollInner"></div>
+                    </div>
+                    <div class="us-focus-panel d-none" id="usFocusPanel">
+                        <div class="d-flex align-items-center justify-content-between">
+                            <div>
+                                <strong id="usFocusTitle">Выбрана US</strong>
+                                <div class="text-muted small">Показаны только пересекающиеся ТК; пустые скрыты</div>
+                            </div>
+                            <button class="btn btn-sm btn-outline-secondary" id="clearUsFocusBtn">
+                                Сбросить
+                            </button>
+                        </div>
+                        <div class="us-focus-list mt-2" id="usFocusList"></div>
                     </div>
                     <div class="matrix-wrapper" id="matrixWrapper">
                         {% if not matrixHtml %}
@@ -635,6 +668,7 @@
     const matrixPreviewCache = new Map();
     const currentUserRole = document.body.dataset.userRole || '';
     const currentUserId = Number(document.body.dataset.currentUserId || 0) || null;
+    let activeUsColumnFilter = null;
 
     function canEditCommentAction(comment) {
         if (!comment || comment.commentType === 'AI_GENERATED') return false;
@@ -648,6 +682,7 @@
         loadProjectTags(projectId);
         loadProjectUserStories(projectId);
         initializeMatrixVirtualization();
+        initializeUsFocusMode();
         initializeMatrixPreviews();
         initializeMatrixScrolling();
 
@@ -839,6 +874,91 @@
         wrapper.addEventListener('scroll', scheduleRender, { passive: true });
         window.addEventListener('resize', scheduleRender);
         renderWindow();
+    }
+
+    function initializeUsFocusMode() {
+        const wrapper = document.getElementById('matrixWrapper');
+        const panel = document.getElementById('usFocusPanel');
+        const panelTitle = document.getElementById('usFocusTitle');
+        const panelList = document.getElementById('usFocusList');
+        const clearBtn = document.getElementById('clearUsFocusBtn');
+        const table = wrapper?.querySelector('.traceability-table');
+        if (!wrapper || !panel || !panelTitle || !panelList || !clearBtn || !table) return;
+
+        const applyColumnFilter = () => {
+            const headerCells = table.querySelectorAll('thead th.test-case-header');
+            headerCells.forEach((th, idx) => {
+                const colIndex = idx + 1;
+                const hide = activeUsColumnFilter && !activeUsColumnFilter.has(colIndex);
+                th.classList.toggle('us-filter-hidden', Boolean(hide));
+            });
+            table.querySelectorAll('tbody tr.user-story-row').forEach(row => {
+                const cells = row.querySelectorAll('td');
+                for (let i = 1; i < cells.length; i += 1) {
+                    const hide = activeUsColumnFilter && !activeUsColumnFilter.has(i);
+                    cells[i].classList.toggle('us-filter-hidden', Boolean(hide));
+                }
+            });
+        };
+
+        const renderFocusPanel = (row) => {
+            const usCell = row.querySelector('.user-story-cell');
+            const usText = usCell?.textContent?.trim() || 'Выбрана US';
+            panelTitle.textContent = usText;
+
+            const intersections = [];
+            const headers = table.querySelectorAll('thead th.test-case-header');
+            const cells = row.querySelectorAll('td');
+            cells.forEach((cell, idx) => {
+                if (idx === 0) return;
+                if (!cell.classList.contains('linked-cell')) return;
+                const th = headers[idx - 1];
+                const tcLink = th?.querySelector('.rotated-link');
+                const tcId = tcLink?.dataset?.testCaseId || idx;
+                const tcLabel = tcLink?.textContent?.trim() || `TC-${tcId}`;
+                intersections.push({ id: tcId, label: tcLabel });
+            });
+
+            if (!intersections.length) {
+                panelList.innerHTML = '<div class="text-muted">Для этой US нет пересечений с ТК</div>';
+            } else {
+                panelList.innerHTML = intersections
+                    .map(tc => `<span class="badge bg-primary me-1 mb-1">${tc.label}</span>`)
+                    .join('');
+            }
+            panel.classList.remove('d-none');
+        };
+
+        wrapper.addEventListener('click', (e) => {
+            const row = e.target.closest('tr.user-story-row');
+            if (!row) return;
+            table.querySelectorAll('tr.user-story-row.selected-us-row').forEach(r => r.classList.remove('selected-us-row'));
+            row.classList.add('selected-us-row');
+            const cells = row.querySelectorAll('td');
+            const keepCols = new Set();
+            cells.forEach((cell, idx) => {
+                if (idx > 0 && cell.classList.contains('linked-cell')) {
+                    keepCols.add(idx);
+                }
+            });
+            activeUsColumnFilter = keepCols;
+            applyColumnFilter();
+            renderFocusPanel(row);
+        });
+
+        clearBtn.addEventListener('click', () => {
+            activeUsColumnFilter = null;
+            table.querySelectorAll('tr.user-story-row.selected-us-row').forEach(r => r.classList.remove('selected-us-row'));
+            panel.classList.add('d-none');
+            applyColumnFilter();
+        });
+
+        const observer = new MutationObserver(() => {
+            if (activeUsColumnFilter) {
+                applyColumnFilter();
+            }
+        });
+        observer.observe(table.querySelector('tbody'), { childList: true, subtree: true });
     }
 
     function initializeMatrixScrolling() {

@@ -36,6 +36,7 @@ urlpatterns = [
     path("api/projects/<int:project_id>/test-runs", api_views.project_test_runs_collection),
     path("api/projects/<int:project_id>/test-runs/search", api_views.test_runs_search),
     path("api/projects/<int:project_id>/traceability-ai-quality", api_views.traceability_ai_quality),
+    path("api/projects/<int:project_id>/traceability-matrix/export-excel", api_views.traceability_matrix_export_excel),
     path("api/test-suites/<int:id>", api_views.test_suite_item),
     path("api/test-suites/<int:test_suite_id>/test-cases", api_views.test_suite_cases_collection),
     path("api/test-suites/<int:test_suite_id>/test-cases/search", api_views.test_suite_cases_search),
