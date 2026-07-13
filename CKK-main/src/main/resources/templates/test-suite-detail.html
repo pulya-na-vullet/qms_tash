@@ -1025,6 +1025,7 @@
         const progressBar = document.getElementById('aiReviewProgressBar');
         const progressText = document.getElementById('aiReviewProgressText');
         let queueRunning = false;
+        let statusPollIntervalId = null;
 
         const updateProgressUI = (job) => {
             if (!job) return;
@@ -1041,16 +1042,39 @@
             }
         };
 
+        const startStatusPolling = () => {
+            if (statusPollIntervalId) return;
+            statusPollIntervalId = setInterval(() => {
+                pollStatus();
+            }, 5000);
+        };
+
+        const stopStatusPolling = () => {
+            if (!statusPollIntervalId) return;
+            clearInterval(statusPollIntervalId);
+            statusPollIntervalId = null;
+        };
+
         const pollStatus = () => {
             const testSuiteId = testSuiteData.id;
-            fetch(`/api/test-suites/${testSuiteId}/ai-test-case-review/status`)
+            return fetch(`/api/test-suites/${testSuiteId}/ai-test-case-review/status`)
                 .then(r => r.json())
                 .then(data => {
                     if (data.success && data.job) {
                         updateProgressUI(data.job);
+                        if (data.job.status === 'RUNNING') {
+                            startStatusPolling();
+                        } else {
+                            stopStatusPolling();
+                        }
+                    } else {
+                        // No active queue: do not keep polling indefinitely.
+                        stopStatusPolling();
                     }
                 })
-                .catch(() => {});
+                .catch(() => {
+                    stopStatusPolling();
+                });
         };
 
         const processQueue = async () => {
@@ -1080,6 +1104,7 @@
                 if (done) {
                     queueRunning = false;
                     pollStatus();
+                    stopStatusPolling();
                     if (currentTestCaseData) loadTestCaseDetail(currentTestCaseData.id);
                     break;
                 }
@@ -1105,6 +1130,7 @@
                 }
                 if (data.job) updateProgressUI(data.job);
                 showMessage(data.message || 'Очередь AI-ревью запущена', 'success');
+                startStatusPolling();
                 processQueue();
             } catch (error) {
                 console.error('Ошибка запуска ревью:', error);
@@ -1113,7 +1139,6 @@
         });
 
         pollStatus();
-        setInterval(pollStatus, 5000);
     }
 
     // Функция для загрузки AI ревью тест-кейса
