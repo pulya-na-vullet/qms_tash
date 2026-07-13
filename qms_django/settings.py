@@ -126,7 +126,9 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = "ru-ru"
 
-TIME_ZONE = "UTC"
+# Use a configurable local timezone for UI dates in templates/admin pages.
+# Defaults to Moscow time for Russian deployments.
+TIME_ZONE = os.environ.get("DJANGO_TIME_ZONE", "Europe/Moscow")
 
 USE_I18N = True
 
