@@ -973,25 +973,36 @@
         listContainer.style.overflowY = 'auto';
     }
 
+    function getRequestedTestCaseIdFromUrl() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const requested = urlParams.get('testCaseId');
+        if (!requested || requested === 'undefined' || requested === 'null') {
+            return null;
+        }
+        return requested;
+    }
+
+    function applyRequestedTestCaseSelection(testCases) {
+        const requestedId = getRequestedTestCaseIdFromUrl();
+        if (!requestedId) return false;
+        const existsInList = (testCases || []).some(tc => String(tc.id) === String(requestedId));
+        if (!existsInList) return false;
+
+        loadTestCaseDetail(requestedId);
+        const testCaseElement = document.getElementById(`test-case-item-${requestedId}`);
+        if (testCaseElement) {
+            setActiveTestCase(testCaseElement);
+            testCaseElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        return true;
+    }
+
     // Загрузка страницы
     document.addEventListener('DOMContentLoaded', function() {
         testSuiteData = {
             id: document.getElementById('testSuiteData').dataset.testSuiteId,
             projectId: document.getElementById('testSuiteData').dataset.projectId
         };
-
-        const urlParams = new URLSearchParams(window.location.search);
-        const testCaseIdFromUrl = urlParams.get('testCaseId');
-        if (testCaseIdFromUrl && testCaseIdFromUrl !== 'undefined' && testCaseIdFromUrl !== 'null') {
-            setTimeout(() => {
-                loadTestCaseDetail(testCaseIdFromUrl);
-                const testCaseElement = document.getElementById(`test-case-item-${testCaseIdFromUrl}`);
-                if (testCaseElement) {
-                    setActiveTestCase(testCaseElement);
-                    testCaseElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }
-            }, 500);
-        }
 
         // Always hydrate the left list from API at runtime.
         loadTestCases(testSuiteData.id);
@@ -1699,6 +1710,7 @@
                     </div>
                 `).join('');
                 addTestCaseClickHandlers();
+                applyRequestedTestCaseSelection(testCases);
                 requestAnimationFrame(syncWorkspaceHeight);
             })
             .catch(error => {
