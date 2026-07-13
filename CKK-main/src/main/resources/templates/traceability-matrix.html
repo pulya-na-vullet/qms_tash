@@ -1013,11 +1013,12 @@
                     </div>
                     <div class="d-flex flex-wrap gap-2">
                         ${intersections.map(tc => `
-                            <button class="btn btn-sm btn-outline-primary open-us-tc-btn"
+                            <a class="btn btn-sm btn-outline-primary open-us-tc-btn"
                                     data-test-case-id="${tc.id}"
-                                    data-test-case-url="${tc.url || ''}">
+                                    data-test-case-url="${tc.url || ''}"
+                                    href="${tc.url || '#'}">
                                 ${tc.label}
-                            </button>
+                            </a>
                         `).join('')}
                     </div>
                 `;
@@ -1037,14 +1038,16 @@
                     });
                 }
                 usTcModalBodyEl.querySelectorAll('.open-us-tc-btn').forEach(btn => {
-                    btn.addEventListener('click', async () => {
+                    btn.addEventListener('click', async (e) => {
                         const tcId = (btn.dataset.testCaseId || '').trim();
                         const tcUrlRaw = (btn.dataset.testCaseUrl || '').trim();
                         const tcUrl = normalizeTcNavigationUrl(tcUrlRaw, tcId);
                         if (tcUrl) {
-                            window.location.href = tcUrl;
+                            // Keep native link behavior (including context menu/open in new tab).
+                            btn.setAttribute('href', tcUrl);
                             return;
                         }
+                        e.preventDefault();
                         if (!tcId) {
                             showMessage('Не удалось определить ID тест-кейса', 'danger');
                             return;
@@ -1053,7 +1056,9 @@
                             const response = await fetch(`/api/test-cases/${tcId}`);
                             const data = await response.json();
                             if (data.success && data.testCase && data.testCase.testSuiteId) {
-                                window.location.href = `/test-suite/${data.testCase.testSuiteId}?testCaseId=${tcId}`;
+                                const fallbackUrl = `/test-suite/${data.testCase.testSuiteId}?testCaseId=${tcId}`;
+                                btn.setAttribute('href', fallbackUrl);
+                                window.location.href = fallbackUrl;
                                 return;
                             }
                         } catch (_) {
