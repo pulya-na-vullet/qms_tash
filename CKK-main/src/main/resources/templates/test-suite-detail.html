@@ -189,20 +189,26 @@
         #testCasesContainer {
             flex: 1 1 auto;
             min-height: 0;
+            height: 0;
             overflow-y: auto;
             overscroll-behavior-y: contain;
         }
         .workspace-row {
-            height: calc(100vh - 250px);
+            height: var(--workspace-height, calc(100vh - 320px));
             min-height: 520px;
+            align-items: stretch;
         }
         .workspace-row > [class*="col-"] {
             display: flex;
+            flex-direction: column;
+            height: 100%;
             min-height: 0;
         }
         .workspace-row > [class*="col-"] > .card {
             flex: 1 1 auto;
+            height: 100%;
             min-height: 0;
+            margin-bottom: 0;
         }
         .detail-card {
             height: 100%;
@@ -211,7 +217,8 @@
             min-height: 0;
         }
         .detail-card .card-body {
-            flex: 1;
+            flex: 1 1 auto;
+            height: 0;
             overflow-y: auto;
             min-height: 0;
         }
@@ -943,6 +950,21 @@
         return score.toFixed(1);
     }
 
+    // Поддерживаем одинаковую высоту левой/правой колонок и внутренний скролл.
+    function syncWorkspaceHeight() {
+        const workspaceRow = document.querySelector('.workspace-row');
+        if (!workspaceRow) return;
+        if (window.matchMedia('(max-width: 991.98px)').matches) {
+            workspaceRow.style.removeProperty('--workspace-height');
+            return;
+        }
+        const rowTop = workspaceRow.getBoundingClientRect().top;
+        const bottomGap = 24;
+        const availableHeight = window.innerHeight - rowTop - bottomGap;
+        const finalHeight = Math.max(520, availableHeight);
+        workspaceRow.style.setProperty('--workspace-height', `${finalHeight}px`);
+    }
+
     // Загрузка страницы
     document.addEventListener('DOMContentLoaded', function() {
         testSuiteData = {
@@ -973,7 +995,9 @@
         initializeAIAnalysisHandler();
         initializeAIReviewHandler();
         initializeImportAndBugTools();
+        syncWorkspaceHeight();
     });
+    window.addEventListener('resize', syncWorkspaceHeight);
 
     // Инициализация обработчика AI ревью
     function initializeAIReviewHandler() {
