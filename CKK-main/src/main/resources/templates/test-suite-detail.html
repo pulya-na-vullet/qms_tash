@@ -183,9 +183,11 @@
             flex: 1 1 auto;
             min-height: 0;
             overflow-y: auto;
+            overscroll-behavior-y: contain;
         }
         #testCasesContainer {
-            min-height: 100%;
+            height: auto;
+            min-height: 0;
         }
         .workspace-row {
             min-height: calc(100vh - 250px);
