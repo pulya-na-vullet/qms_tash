@@ -1139,7 +1139,9 @@ def ai_review_suite_queue_next(request, test_suite_id):
 def ai_review_suite_queue_status(request, test_suite_id):
     job = TestSuiteAIReviewJob.objects.filter(test_suite_id=test_suite_id).first()
     if not job:
-        return JsonResponse(build_api_response(False, "Очередь не найдена"), status=404)
+        # No active queue is an expected idle state; keep HTTP 200
+        # to avoid filling logs with repeated "Not Found" entries.
+        return JsonResponse(build_api_response(False, "Очередь не запущена", job=None))
     return JsonResponse(build_api_response(True, job=_serialize_ai_review_job(job)))
 
 
