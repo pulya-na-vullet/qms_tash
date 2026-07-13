@@ -734,7 +734,6 @@
                                     aria-controls="aiAnalysisResultCollapse"
                                 >
                                     <span><i class="fas fa-chevron-down me-2"></i>Результат анализа ИИ</span>
-                                    <span class="badge bg-info text-dark" id="aiAnalysisResultBadge">новый</span>
                                 </button>
                                 <div class="collapse mt-2" id="aiAnalysisResultCollapse">
                                     <div class="card card-body">
@@ -1985,7 +1984,6 @@
         const resultWrap = document.getElementById('aiAnalysisResultWrap');
         const resultMeta = document.getElementById('aiAnalysisResultMeta');
         const resultContent = document.getElementById('aiAnalysisResultContent');
-        const resultBadge = document.getElementById('aiAnalysisResultBadge');
         const resultCollapseEl = document.getElementById('aiAnalysisResultCollapse');
         const resultCollapse = resultCollapseEl ? new bootstrap.Collapse(resultCollapseEl, { toggle: false }) : null;
 
@@ -1996,8 +1994,9 @@
                 resultMeta.textContent = 'AI не вернул подробный текст анализа';
                 resultContent.textContent = 'Результат отсутствует';
                 resultContent.classList.add('ai-analysis-result-empty');
-                resultBadge.textContent = 'пусто';
-                resultBadge.className = 'badge bg-secondary';
+                if (resultCollapse) {
+                    resultCollapse.hide();
+                }
                 return;
             }
 
@@ -2008,13 +2007,11 @@
             const timestampRaw = data?.createdAt || data?.created_at || new Date().toISOString();
             const ts = new Date(timestampRaw);
             const tsDisplay = Number.isNaN(ts.getTime()) ? timestampRaw : ts.toLocaleString('ru-RU');
-            const sourceLabel = isFresh ? 'Новый ответ ИИ' : 'Последний сохраненный ответ ИИ';
+            const sourceLabel = isFresh ? 'Обновлено' : 'Сохранено';
             resultMeta.textContent = `${sourceLabel}: ${tsDisplay}`;
-            resultBadge.textContent = isFresh ? 'новый' : 'кэш';
-            resultBadge.className = isFresh ? 'badge bg-success' : 'badge bg-info text-dark';
 
             if (resultCollapse) {
-                resultCollapse.show();
+                resultCollapse.hide();
             }
         }
 
