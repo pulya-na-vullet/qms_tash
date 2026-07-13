@@ -1000,7 +1000,13 @@
             table.querySelectorAll('tbody tr.user-story-row').forEach(row => {
                 const usCell = row.querySelector('.user-story-cell');
                 if (!usCell) return;
-                if (usCell.querySelector('.us-tc-list-btn')) return;
+                const existingBtn = usCell.querySelector('.us-tc-list-btn');
+                const intersections = getIntersections(row);
+                if (!intersections.length) {
+                    if (existingBtn) existingBtn.remove();
+                    return;
+                }
+                if (existingBtn) return;
                 const btn = document.createElement('button');
                 btn.type = 'button';
                 btn.className = 'btn btn-outline-primary us-tc-list-btn';
