@@ -266,6 +266,17 @@
             font-size: 0.75rem;
             margin-left: 0.5rem;
         }
+        .test-case-search-input {
+            border-radius: 10px;
+            border: 1px solid #dcdfe6;
+        }
+        .test-case-tag {
+            font-size: 0.7rem;
+            margin-left: 0.35rem;
+            border: 1px solid #d4d9e2;
+            color: #4d5663;
+            background: #f2f5fb;
+        }
     </style>
 </head>
 <body>
@@ -373,6 +384,18 @@
 
                     <div class="mb-3">
                         <label class="form-label">Добавить тест-кейсы:</label>
+                        <div class="input-group mb-2">
+                            <span class="input-group-text"><i class="fas fa-search"></i></span>
+                            <input
+                                type="text"
+                                class="form-control test-case-search-input"
+                                id="testCaseSearchInput"
+                                placeholder="Поиск ТК по названию или тегу (например: smoke, regression)"
+                            >
+                            <button class="btn btn-outline-secondary" type="button" id="clearTestCaseSearchBtn">
+                                Очистить
+                            </button>
+                        </div>
                         <div class="checkbox-container" id="testCasesCheckboxes">
                             <div class="text-center py-3">
                                 <div class="loading-spinner"></div>
@@ -605,6 +628,7 @@
     let allTestCases = [];
     let allTestSuites = [];
     let currentTestRunTestCases = [];
+    let selectedCreateTestCaseIds = new Set();
 
     // Объект для отображения статусов
     const statusDisplayNames = {
@@ -634,6 +658,14 @@
         document.getElementById('updateTestRunBtn').addEventListener('click', updateTestRun);
         document.getElementById('confirmDeleteTestRunBtn').addEventListener('click', deleteTestRun);
         document.getElementById('createTestRunModal').addEventListener('hidden.bs.modal', resetCreateTestRunForm);
+        document.getElementById('testCaseSearchInput').addEventListener('input', function() {
+            renderCreateTestCaseCheckboxes(this.value || '');
+        });
+        document.getElementById('clearTestCaseSearchBtn').addEventListener('click', function() {
+            const searchInput = document.getElementById('testCaseSearchInput');
+            searchInput.value = '';
+            renderCreateTestCaseCheckboxes('');
+        });
 
         // Добавляем обработчики удаления и редактирования для существующих тест-ранов
         document.querySelectorAll('.delete-test-run-btn').forEach(btn => {
@@ -690,9 +722,11 @@
             form.reset();
         }
 
-        document.querySelectorAll('.test-case-checkbox, .test-suite-checkbox').forEach(checkbox => {
+        selectedCreateTestCaseIds = new Set();
+        document.querySelectorAll('.test-suite-checkbox').forEach(checkbox => {
             checkbox.checked = false;
         });
+        renderCreateTestCaseCheckboxes('');
 
         document.getElementById('testCasesCount').textContent = 'Выбрано: 0 тест-кейсов';
         document.getElementById('testSuitesCount').textContent = 'Выбрано: 0 тест-сьютов';
@@ -923,23 +957,7 @@
             })
             .then(testCases => {
                 allTestCases = testCases;
-                const container = document.getElementById('testCasesCheckboxes');
-                if (testCases.length === 0) {
-                    container.innerHTML = '<div class="text-muted text-center">Нет доступных тест-кейсов</div>';
-                } else {
-                    container.innerHTML = testCases.map(tc =>
-                        `<div class="form-check">
-                            <input class="form-check-input test-case-checkbox" type="checkbox" value="${tc.id}" id="testCase-${tc.id}">
-                            <label class="form-check-label" for="testCase-${tc.id}">
-                                ${tc.name} (ID: ${tc.id})
-                            </label>
-                        </div>`
-                    ).join('');
-
-                    document.querySelectorAll('.test-case-checkbox').forEach(checkbox => {
-                        checkbox.addEventListener('change', updateSelectionCounts);
-                    });
-                }
+                renderCreateTestCaseCheckboxes('');
             })
             .catch(error => {
                 console.error('Error loading test cases:', error);
@@ -978,6 +996,65 @@
                 const container = document.getElementById('testSuitesCheckboxes');
                 container.innerHTML = `<div class="alert alert-danger">Ошибка загрузки тест-сьютов: ${error.message}</div>`;
             });
+    }
+
+    function renderCreateTestCaseCheckboxes(searchTerm = '') {
+        const container = document.getElementById('testCasesCheckboxes');
+        if (!container) return;
+        const query = String(searchTerm || '').trim().toLowerCase();
+
+        if (!allTestCases.length) {
+            container.innerHTML = '<div class="text-muted text-center">Нет доступных тест-кейсов</div>';
+            updateSelectionCounts();
+            return;
+        }
+
+        const filtered = allTestCases.filter(tc => {
+            if (!query) return true;
+            const name = (tc.name || '').toLowerCase();
+            const tagsText = (tc.tags || [])
+                .map(tag => (tag?.name || '').toLowerCase())
+                .join(' ');
+            return name.includes(query) || tagsText.includes(query);
+        });
+
+        if (!filtered.length) {
+            container.innerHTML = `
+                <div class="text-center text-muted py-3">
+                    <i class="fas fa-search me-1"></i>Ничего не найдено по запросу "${searchTerm}"
+                </div>
+            `;
+            updateSelectionCounts();
+            return;
+        }
+
+        container.innerHTML = filtered.map(tc => {
+            const tags = tc.tags || [];
+            const tagsHtml = tags.length
+                ? tags.map(tag => `<span class="badge rounded-pill test-case-tag">${tag.name}</span>`).join('')
+                : '<span class="text-muted small ms-2">без тегов</span>';
+            return `
+                <div class="form-check">
+                    <input class="form-check-input test-case-checkbox" type="checkbox" value="${tc.id}" id="testCase-${tc.id}" ${selectedCreateTestCaseIds.has(tc.id) ? 'checked' : ''}>
+                    <label class="form-check-label" for="testCase-${tc.id}">
+                        ${tc.name} (ID: ${tc.id}) ${tagsHtml}
+                    </label>
+                </div>
+            `;
+        }).join('');
+
+        document.querySelectorAll('.test-case-checkbox').forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                const id = Number(this.value);
+                if (this.checked) {
+                    selectedCreateTestCaseIds.add(id);
+                } else {
+                    selectedCreateTestCaseIds.delete(id);
+                }
+                updateSelectionCounts();
+            });
+        });
+        updateSelectionCounts();
     }
 
     function loadTestRunForEdit(testRunId) {
@@ -1136,8 +1213,7 @@
     }
 
     function updateSelectionCounts() {
-        const selectedTestCaseCheckboxes = document.querySelectorAll('.test-case-checkbox:checked');
-        const testCasesCount = selectedTestCaseCheckboxes.length;
+        const testCasesCount = selectedCreateTestCaseIds.size;
         document.getElementById('testCasesCount').textContent = `Выбрано: ${testCasesCount} тест-кейсов`;
 
         const selectedTestSuiteCheckboxes = document.querySelectorAll('.test-suite-checkbox:checked');
@@ -1237,12 +1313,7 @@
     }
 
     function getUniqueTestCaseIds() {
-        const uniqueTestCaseIds = new Set();
-
-        const selectedTestCaseCheckboxes = document.querySelectorAll('.test-case-checkbox:checked');
-        selectedTestCaseCheckboxes.forEach(checkbox => {
-            uniqueTestCaseIds.add(Number(checkbox.value));
-        });
+        const uniqueTestCaseIds = new Set(selectedCreateTestCaseIds);
 
         const selectedTestSuiteCheckboxes = document.querySelectorAll('.test-suite-checkbox:checked');
         selectedTestSuiteCheckboxes.forEach(checkbox => {
