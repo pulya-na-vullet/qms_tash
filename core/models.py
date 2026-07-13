@@ -420,6 +420,7 @@ class AIActivityLog(TimestampedModel):
         REVIEW_TEST_CASE = "REVIEW_TEST_CASE"
         REVIEW_TEST_SUITE = "REVIEW_TEST_SUITE"
         ANALYZE_TEST_SUITE = "ANALYZE_TEST_SUITE"
+        ANALYZE_TRACEABILITY_MODEL = "ANALYZE_TRACEABILITY_MODEL"
 
     class Status(models.TextChoices):
         SUCCESS = "SUCCESS"

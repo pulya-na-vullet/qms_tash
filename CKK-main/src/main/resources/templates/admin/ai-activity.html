@@ -92,6 +92,8 @@
                                     Ревью сьюта ТК
                                 {% elif log.action_type == "ANALYZE_TEST_SUITE" %}
                                     Оценка сьюта в целом
+                                {% elif log.action_type == "ANALYZE_TRACEABILITY_MODEL" %}
+                                    Оценка тестовой модели (матрица покрытия)
                                 {% else %}
                                     {{ log.action_type }}
                                 {% endif %}

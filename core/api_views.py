@@ -1244,7 +1244,25 @@ def admin_ai_test_connection(request):
 @require_http_methods(["GET", "POST"])
 def traceability_ai_quality(request, project_id):
     force_refresh = request.method == "POST"
+    project = Project.objects.filter(id=project_id).first()
+    core_user = _resolve_core_user(request)
+    activity = None
+    if force_refresh:
+        activity = _create_ai_activity_log(
+            action_type=AIActivityLog.ActionType.ANALYZE_TRACEABILITY_MODEL,
+            status=AIActivityLog.Status.RUNNING,
+            initiated_by=core_user,
+            project=project,
+            message=f"Запуск AI-оценки тестовой модели проекта #{project_id}",
+        )
     result = analyze_traceability_model_quality(project_id, force_refresh=force_refresh)
+    if activity:
+        activity.status = AIActivityLog.Status.SUCCESS if result.get("success") else AIActivityLog.Status.FAILED
+        activity.message = result.get("message") or (
+            "AI-оценка тестовой модели сформирована" if result.get("success") else "AI-оценка тестовой модели завершилась с ошибкой"
+        )
+        activity.finished_at = timezone.now()
+        activity.save(update_fields=["status", "message", "finished_at", "updated_at"])
     return JsonResponse(result, status=200 if result.get("success") else 400)
 
 
