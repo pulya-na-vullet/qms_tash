@@ -1293,6 +1293,7 @@ def traceability_matrix_export_excel(request, project_id):
     )
     response["Content-Disposition"] = f'attachment; filename="{filename}"'
     wb.save(response)
+    wb.close()
     return response
 
 

@@ -3,6 +3,7 @@ from django.contrib.auth import authenticate, login as auth_login, logout as aut
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User as DjangoUser
 from django.db import connection
+from django.db import transaction
 from django.db.utils import OperationalError, ProgrammingError
 from django.shortcuts import get_object_or_404, redirect, render
 from django.views.decorators.cache import never_cache
@@ -28,6 +29,7 @@ from .services import calculate_traceability_metrics, generate_and_store_matrix
 ROLE_ADMIN = "ADMIN"
 ROLE_ANALYST = "ANALYST"
 ROLE_TESTER = "TESTER"
+_DEMO_USERS_ENSURED = False
 
 
 def _ai_settings_table_ready() -> bool:
@@ -90,31 +92,49 @@ def role_required(*allowed_roles):
 
 
 def _ensure_demo_auth_users():
+    global _DEMO_USERS_ENSURED
+    if _DEMO_USERS_ENSURED:
+        return
+
     mapping = (
         ("admin", ROLE_ADMIN, "Администратор"),
         ("analyst", ROLE_ANALYST, "Аналитик"),
         ("tester", ROLE_TESTER, "Тестировщик"),
     )
-    for username, role, full_name in mapping:
-        core_user, core_created = CoreUser.objects.get_or_create(
-            username=username,
-            defaults={
-                "password": username,
-                "full_name": full_name,
-                "roles": [role],
-                "enabled": True,
-            },
-        )
-        if core_created:
-            core_user.save()
+    try:
+        with transaction.atomic():
+            for username, role, full_name in mapping:
+                core_user, _ = CoreUser.objects.get_or_create(
+                    username=username,
+                    defaults={
+                        "password": username,
+                        "full_name": full_name,
+                        "roles": [role],
+                        "enabled": True,
+                    },
+                )
 
-        user, _ = DjangoUser.objects.get_or_create(username=username)
-        user.set_password(username)
-        # IMPORTANT: keep auth status aligned with CoreUser.enabled so admin locks persist.
-        user.is_active = bool(core_user.enabled)
-        if not user.first_name:
-            user.first_name = full_name
-        user.save()
+                user, created = DjangoUser.objects.get_or_create(
+                    username=username,
+                    defaults={"first_name": full_name, "is_active": bool(core_user.enabled)},
+                )
+                changed = False
+                if created:
+                    user.set_password(username)
+                    changed = True
+                if user.is_active != bool(core_user.enabled):
+                    user.is_active = bool(core_user.enabled)
+                    changed = True
+                if not user.first_name:
+                    user.first_name = full_name
+                    changed = True
+                if changed:
+                    user.save()
+    except OperationalError:
+        # SQLite may be temporarily locked by another request/task.
+        return
+
+    _DEMO_USERS_ENSURED = True
 
 
 @never_cache
