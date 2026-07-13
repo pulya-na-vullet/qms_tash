@@ -43,7 +43,6 @@
             max-height: 72vh;
             padding: 15px;
             cursor: default;
-            position: relative;
         }
         .matrix-wrapper.grab-enabled {
             cursor: grab;
@@ -71,18 +70,27 @@
             margin: 0 15px 8px 15px;
         }
         .matrix-minimap {
-            position: absolute;
-            right: 16px;
-            bottom: 16px;
             width: 220px;
             height: 130px;
             border: 1px solid #ced4da;
             border-radius: 10px;
-            background: rgba(248, 249, 250, 0.95);
+            background: #f8f9fa;
             box-shadow: 0 3px 12px rgba(0, 0, 0, 0.12);
-            z-index: 40;
             overflow: hidden;
             cursor: crosshair;
+        }
+        .matrix-minimap-panel {
+            border: 1px solid #e9ecef;
+            border-radius: 10px;
+            padding: 8px;
+            background: #fff;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+        .matrix-minimap-title {
+            font-size: 12px;
+            color: #6c757d;
+            margin-bottom: 6px;
+            text-align: center;
         }
         .matrix-minimap-grid {
             position: absolute;
@@ -472,24 +480,19 @@
             transform: translateY(0);
             box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
         }
-        .render-progress-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            z-index: 2000;
-            background: rgba(255, 255, 255, 0.96);
-            border-bottom: 1px solid #e9ecef;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-            transition: opacity 0.25s ease;
+        .render-progress-panel {
+            background: #ffffff;
+            border: 1px solid #e9ecef;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            transition: opacity 0.2s ease;
+            margin-top: 10px;
         }
-        .render-progress-overlay.hidden {
+        .render-progress-panel.hidden {
             opacity: 0;
             pointer-events: none;
         }
         .render-progress-inner {
-            max-width: 1100px;
-            margin: 0 auto;
             padding: 8px 12px 10px 12px;
         }
         .render-progress-text {
@@ -517,17 +520,6 @@
     </style>
 </head>
 <body data-user-role="{{ userRole }}" data-current-user-id="{{ currentUserId }}">
-<div class="render-progress-overlay" id="renderProgressOverlay">
-    <div class="render-progress-inner">
-        <div class="render-progress-text">
-            <span id="renderProgressLabel">Подготовка матрицы…</span>
-            <strong id="renderProgressValue">0%</strong>
-        </div>
-        <div class="render-progress-track">
-            <div class="render-progress-bar" id="renderProgressBar"></div>
-        </div>
-    </div>
-</div>
 <div class="container py-4">
     <!-- Кнопка возврата -->
     <div class="row mb-4">
@@ -621,6 +613,17 @@
                     <i class="fas fa-robot me-2"></i>ИИ-оценка тестовой модели
                 </button>
             </div>
+            <div class="render-progress-panel d-none" id="renderProgressPanel">
+                <div class="render-progress-inner">
+                    <div class="render-progress-text">
+                        <span id="renderProgressLabel">Подготовка матрицы…</span>
+                        <strong id="renderProgressValue">0%</strong>
+                    </div>
+                    <div class="render-progress-track">
+                        <div class="render-progress-bar" id="renderProgressBar"></div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -628,6 +631,15 @@
         <div class="col-12">
             <div class="card matrix-card">
                 <div class="card-body">
+                    <div class="d-flex justify-content-end mb-2">
+                        <div class="matrix-minimap-panel d-none" id="matrixMiniMapPanel">
+                            <div class="matrix-minimap-title">Миникарта матрицы</div>
+                            <div class="matrix-minimap" id="matrixMiniMap">
+                                <div class="matrix-minimap-grid"></div>
+                                <div class="matrix-minimap-viewport" id="matrixMiniViewport"></div>
+                            </div>
+                        </div>
+                    </div>
                     <div class="matrix-scroll-hint">
                         <i class="fas fa-hand-paper me-1"></i>
                         Зажмите ЛКМ и тяните таблицу, либо используйте Shift + колесо
@@ -657,10 +669,6 @@
                         {% else %}
                             {{ matrixHtml|safe }}
                         {% endif %}
-                        <div class="matrix-minimap d-none" id="matrixMiniMap">
-                            <div class="matrix-minimap-grid"></div>
-                            <div class="matrix-minimap-viewport" id="matrixMiniViewport"></div>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -757,11 +765,12 @@
     let renderProgressTimer = null;
 
     function setRenderProgress(value, label) {
-        const overlay = document.getElementById('renderProgressOverlay');
+        const panel = document.getElementById('renderProgressPanel');
         const bar = document.getElementById('renderProgressBar');
         const valueEl = document.getElementById('renderProgressValue');
         const labelEl = document.getElementById('renderProgressLabel');
-        if (!overlay || !bar || !valueEl || !labelEl) return;
+        if (!panel || !bar || !valueEl || !labelEl) return;
+        panel.classList.remove('d-none');
         renderProgressValue = Math.max(renderProgressValue, Math.min(value, 100));
         bar.style.width = `${renderProgressValue}%`;
         valueEl.textContent = `${Math.round(renderProgressValue)}%`;
@@ -782,15 +791,18 @@
     }
 
     function finishRenderProgress() {
-        const overlay = document.getElementById('renderProgressOverlay');
+        const panel = document.getElementById('renderProgressPanel');
         if (renderProgressTimer) {
             clearInterval(renderProgressTimer);
             renderProgressTimer = null;
         }
         setRenderProgress(100, 'Рендер матрицы завершён');
         setTimeout(() => {
-            overlay?.classList.add('hidden');
-            setTimeout(() => overlay?.remove(), 350);
+            panel?.classList.add('hidden');
+            setTimeout(() => {
+                panel?.classList.add('d-none');
+                panel?.classList.remove('hidden');
+            }, 260);
         }, 220);
     }
 
@@ -1250,8 +1262,9 @@
         const topScroll = document.getElementById('matrixTopScroll');
         const topInner = document.getElementById('matrixTopScrollInner');
         const miniMap = document.getElementById('matrixMiniMap');
+        const miniMapPanel = document.getElementById('matrixMiniMapPanel');
         const miniViewport = document.getElementById('matrixMiniViewport');
-        if (!wrapper || !topScroll || !topInner || !miniMap || !miniViewport) return;
+        if (!wrapper || !topScroll || !topInner || !miniMap || !miniViewport || !miniMapPanel) return;
 
         const table = wrapper.querySelector('.traceability-table');
         if (!table) return;
@@ -1277,6 +1290,7 @@
         const updateMiniMap = () => {
             const mmWidth = miniMap.clientWidth;
             const mmHeight = miniMap.clientHeight;
+            if (!mmWidth || !mmHeight) return;
             const scaleX = mmWidth / Math.max(table.scrollWidth, 1);
             const scaleY = mmHeight / Math.max(table.scrollHeight, 1);
 
@@ -1308,7 +1322,7 @@
             const overflow = hasHorizontalOverflow();
             const overflowAny = overflow || hasVerticalOverflow();
             topScroll.classList.toggle('d-none', !overflow);
-            miniMap.classList.toggle('d-none', !overflowAny);
+            miniMapPanel.classList.toggle('d-none', !overflowAny);
             wrapper.classList.toggle('grab-enabled', overflowAny);
             topInner.style.width = `${table.scrollWidth}px`;
             if (!overflow) {
