@@ -245,7 +245,12 @@ def traceability_matrix_page(request, project_id):
     force_refresh = request.GET.get("refresh") in {"1", "true", "yes"}
     matrix = TraceabilityMatrix.objects.filter(project_id=project_id).order_by("-created_at").first()
     try:
-        if force_refresh or not matrix:
+        needs_refresh = force_refresh or not matrix
+        if matrix and matrix.matrix_html:
+            # Rebuild legacy-heavy HTML once to reduce payload/parse time.
+            if "data-bs-trigger=" in matrix.matrix_html:
+                needs_refresh = True
+        if needs_refresh:
             matrix = generate_and_store_matrix(project_id)
     except Exception:
         # Fallback to latest stored matrix if regeneration fails for any reason.

@@ -61,7 +61,6 @@ def generate_and_store_matrix(project_id: int) -> TraceabilityMatrix:
     html = ["<table class=\"traceability-table\">"]
     html.append("<thead><tr><th class=\"user-story-header\">User Story \\ Test Case</th>")
     for tc in test_cases:
-        safe_name = escape(tc.name or "", quote=True)
         tc_link = f"/test-suite/{tc.test_suite_id}?testCaseId={tc.id}"
         score = review_scores.get(tc.id)
         if score is None:
@@ -74,9 +73,7 @@ def generate_and_store_matrix(project_id: int) -> TraceabilityMatrix:
             score_badge = f'<div class="tc-ai-score-badge high-score">AI: {score}/10</div>'
         html.append(
             f"<th class=\"test-case-header\">{score_badge}<a href=\"{tc_link}\" class=\"rotated-link\" "
-            f"data-test-case-id=\"{tc.id}\" data-bs-toggle=\"popover\" data-bs-trigger=\"hover focus\" "
-            f"data-bs-html=\"true\" data-bs-placement=\"auto\" data-bs-title=\"{safe_name}\" "
-            f"data-bs-content=\"Загрузка...\">TC-{tc.id}</a></th>"
+            f"data-test-case-id=\"{tc.id}\" data-bs-toggle=\"popover\">TC-{tc.id}</a></th>"
         )
     html.append("</tr></thead><tbody>")
     for us in user_stories:
@@ -101,7 +98,7 @@ def generate_and_store_matrix(project_id: int) -> TraceabilityMatrix:
         )
         for tc in test_cases:
             if (tc.id, us.id) in links:
-                html.append("<td class=\"linked-cell\"><span class=\"linked-indicator\">✓</span></td>")
+                html.append("<td class=\"linked-cell\">✓</td>")
             else:
                 html.append("<td class=\"unlinked-cell\"></td>")
         html.append("</tr>")

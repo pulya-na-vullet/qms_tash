@@ -142,6 +142,10 @@
         .us-filter-hidden {
             display: none !important;
         }
+        .virtual-col-hidden {
+            visibility: hidden !important;
+            pointer-events: none !important;
+        }
         .us-focus-panel {
             margin: 8px 15px 10px 15px;
             border: 1px solid #cfe2ff;
@@ -809,20 +813,19 @@
 
         const toggleColumnRange = (fromCol, toCol, visible) => {
             if (fromCol > toCol) return;
-            const displayValue = visible ? '' : 'none';
             const fromCellIndex = fromCol + 1;
             const toCellIndex = toCol + 1;
 
             for (let cellIndex = fromCellIndex; cellIndex <= toCellIndex; cellIndex += 1) {
                 if (headerCells[cellIndex]) {
-                    headerCells[cellIndex].style.display = displayValue;
+                    headerCells[cellIndex].classList.toggle('virtual-col-hidden', !visible);
                 }
             }
 
             tbody.querySelectorAll('tr.user-story-row').forEach(row => {
                 for (let cellIndex = fromCellIndex; cellIndex <= toCellIndex; cellIndex += 1) {
                     if (row.cells[cellIndex]) {
-                        row.cells[cellIndex].style.display = displayValue;
+                        row.cells[cellIndex].classList.toggle('virtual-col-hidden', !visible);
                     }
                 }
             });
