@@ -1,9 +1,11 @@
 from datetime import timedelta
 from html import escape
 import re
+import logging
 
 import requests
 from django.db import transaction
+from django.db import OperationalError
 from django.db.models import Prefetch
 from django.utils import timezone
 
@@ -22,6 +24,8 @@ from .models import (
     User,
     UserStory,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def build_api_response(success: bool, message: str = "", **payload):
@@ -167,7 +171,16 @@ def calculate_traceability_metrics(project_id: int):
 
 def bulk_refresh_matrices():
     for project_id in Project.objects.values_list("id", flat=True):
-        generate_and_store_matrix(project_id)
+        try:
+            generate_and_store_matrix(project_id)
+        except OperationalError as exc:
+            if "database is locked" in str(exc).lower():
+                logger.warning(
+                    "Skipped matrix refresh for project_id=%s: sqlite database is locked",
+                    project_id,
+                )
+                continue
+            raise
 
 
 def ensure_default_admin():
