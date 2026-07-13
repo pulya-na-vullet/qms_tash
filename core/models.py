@@ -25,6 +25,27 @@ class Project(TimestampedModel):
         return self.name
 
 
+class ProjectIntegrationSettings(TimestampedModel):
+    project = models.OneToOneField(
+        Project,
+        on_delete=models.CASCADE,
+        related_name="integration_settings",
+    )
+    jira_bug_create_url = models.TextField(blank=True, null=True)
+
+    allure_base_url = models.CharField(max_length=500, blank=True, null=True)
+    allure_project_id = models.CharField(max_length=128, blank=True, null=True)
+    allure_api_token = models.TextField(blank=True, null=True)
+
+    testit_base_url = models.CharField(max_length=500, blank=True, null=True)
+    testit_project_id = models.CharField(max_length=128, blank=True, null=True)
+    testit_private_token = models.TextField(blank=True, null=True)
+
+    class Meta:
+        db_table = "project_integration_settings"
+        ordering = ("project_id",)
+
+
 class Section(TimestampedModel):
     name = models.CharField(max_length=255)
     project = models.ForeignKey(

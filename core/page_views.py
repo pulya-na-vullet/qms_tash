@@ -10,7 +10,17 @@ from django.views.decorators.csrf import ensure_csrf_cookie
 from django.views.decorators.http import require_POST
 from functools import wraps
 
-from .models import AIActivityLog, AIProviderSettings, Project, Section, TestRun, TestSuite, TraceabilityMatrix, User as CoreUser
+from .models import (
+    AIActivityLog,
+    AIProviderSettings,
+    Project,
+    ProjectIntegrationSettings,
+    Section,
+    TestRun,
+    TestSuite,
+    TraceabilityMatrix,
+    User as CoreUser,
+)
 from .serializers import TestRunSerializer, TestSuiteSerializer
 from .services import calculate_traceability_metrics, generate_and_store_matrix
 
@@ -173,6 +183,7 @@ def test_suite_detail_page(request, id):
     if not suite:
         return redirect("/project-qa")
     core_user = CoreUser.objects.filter(username=request.user.username).first()
+    integration = ProjectIntegrationSettings.objects.filter(project_id=suite.project_id).first()
     return render(
         request,
         "test-suite-detail.html",
@@ -181,6 +192,7 @@ def test_suite_detail_page(request, id):
             "testSuiteCreatedAtDisplay": suite.created_at.strftime("%Y-%m-%d в %H:%M:%S"),
             "currentUserId": core_user.id if core_user else "",
             "currentUserRole": _resolve_user_role(request),
+            "jiraBugCreateUrl": integration.jira_bug_create_url if integration else "",
         },
     )
 
@@ -395,6 +407,43 @@ def admin_ai_activity_page(request):
             "successLogs": sum(1 for row in logs if row.status == AIActivityLog.Status.SUCCESS),
             "failedLogs": sum(1 for row in logs if row.status == AIActivityLog.Status.FAILED),
             "runningLogs": sum(1 for row in logs if row.status == AIActivityLog.Status.RUNNING),
+        },
+    )
+
+
+@role_required(ROLE_ADMIN)
+def admin_project_integrations_page(request):
+    if request.method == "POST":
+        project_id = request.POST.get("projectId")
+        project = Project.objects.filter(id=project_id).first()
+        if not project:
+            messages.error(request, "Проект не найден.")
+            return redirect("/admin/project-integrations")
+        settings_obj, _ = ProjectIntegrationSettings.objects.get_or_create(project=project)
+        settings_obj.jira_bug_create_url = (request.POST.get("jiraBugCreateUrl") or "").strip() or None
+        settings_obj.allure_base_url = (request.POST.get("allureBaseUrl") or "").strip() or None
+        settings_obj.allure_project_id = (request.POST.get("allureProjectId") or "").strip() or None
+        settings_obj.allure_api_token = (request.POST.get("allureApiToken") or "").strip() or settings_obj.allure_api_token
+        settings_obj.testit_base_url = (request.POST.get("testitBaseUrl") or "").strip() or None
+        settings_obj.testit_project_id = (request.POST.get("testitProjectId") or "").strip() or None
+        settings_obj.testit_private_token = (
+            (request.POST.get("testitPrivateToken") or "").strip() or settings_obj.testit_private_token
+        )
+        settings_obj.save()
+        messages.success(request, f"Интеграции для проекта «{project.name}» сохранены.")
+        return redirect("/admin/project-integrations")
+
+    projects = list(Project.objects.all().order_by("id"))
+    settings_map = {
+        row.project_id: row
+        for row in ProjectIntegrationSettings.objects.filter(project_id__in=[p.id for p in projects])
+    }
+    project_rows = [{"project": project, "settings": settings_map.get(project.id)} for project in projects]
+    return render(
+        request,
+        "admin/project-integrations.html",
+        {
+            "projectRows": project_rows,
         },
     )
 

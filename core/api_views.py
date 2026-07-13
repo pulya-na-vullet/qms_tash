@@ -13,6 +13,7 @@ from .models import (
     AIAnalysis,
     Comment,
     Project,
+    ProjectIntegrationSettings,
     Section,
     Tag,
     TestCase,
@@ -48,6 +49,7 @@ from .services import (
     create_or_update_review,
     create_test_run,
     generate_and_store_matrix,
+    import_test_cases_from_provider,
     normalize_status,
     run_ai_test_suite_analysis,
     test_ai_provider_connection,
@@ -367,6 +369,18 @@ def test_suite_cases_search(request, test_suite_id):
         Q(name__icontains=term) | Q(description__icontains=term) | Q(preconditions__icontains=term)
     )
     return JsonResponse(TestCaseSerializer(queryset, many=True).data, safe=False)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def import_test_cases_external(request, test_suite_id):
+    payload = _json_body(request)
+    provider = (payload.get("provider") or "").strip().lower()
+    if provider not in {"allure", "testit"}:
+        return JsonResponse(build_api_response(False, "Укажите provider: allure или testit"), status=400)
+    result = import_test_cases_from_provider(test_suite_id, provider)
+    status = 200 if result.get("success") else 400
+    return JsonResponse(result, status=status)
 
 
 @csrf_exempt

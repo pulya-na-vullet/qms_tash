@@ -650,13 +650,13 @@
                 <div class="card-body">
                     <div class="row">
                         <div class="col-md-3 mb-3">
-                            <button class="btn btn-outline-success w-100" disabled>
+                            <button class="btn btn-outline-success w-100" id="bugReportBtn">
                                 <i class="fas fa-bug me-2"></i>
                                 Баг-репорт
                             </button>
                         </div>
                         <div class="col-md-3 mb-3">
-                            <button class="btn btn-outline-primary w-100" disabled>
+                            <button class="btn btn-outline-primary w-100" id="importTestsBtn">
                                 <i class="fas fa-file-import me-2"></i>
                                 Импорт тестов
                             </button>
@@ -834,7 +834,39 @@
 <div id="testSuiteData"
      data-test-suite-id="{{ testSuite.id }}"
      data-project-id="{{ testSuite.projectId }}"
+     data-jira-bug-create-url="{{ jiraBugCreateUrl|default:'' }}"
      style="display: none;">
+</div>
+
+<div class="modal fade" id="importTestsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-file-import me-2"></i>Импорт тест-кейсов</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="importProviderSelect" class="form-label">Источник импорта</label>
+                    <select id="importProviderSelect" class="form-select">
+                        <option value="allure">Allure TestOps</option>
+                        <option value="testit">TestIT</option>
+                    </select>
+                </div>
+                <div class="alert alert-info mb-0">
+                    Настройки подключений задаются администратором в разделе
+                    <strong>Интеграции проектов</strong>.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline-secondary" data-bs-dismiss="modal">Отмена</button>
+                <button class="btn btn-primary" id="confirmImportTestsBtn">
+                    <span class="import-btn-text">Импортировать</span>
+                    <span class="spinner-border spinner-border-sm d-none import-btn-spinner" role="status" aria-hidden="true"></span>
+                </button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
@@ -908,6 +940,7 @@
         initializeButtonHandlers();
         initializeAIAnalysisHandler();
         initializeAIReviewHandler();
+        initializeImportAndBugTools();
     });
 
     // Инициализация обработчика AI ревью
@@ -1779,6 +1812,104 @@
                 copyTestCaseLink(currentTestCaseData.id);
             }
         });
+    }
+
+    function initializeImportAndBugTools() {
+        const testSuiteNode = document.getElementById('testSuiteData');
+        const bugReportBtn = document.getElementById('bugReportBtn');
+        const importTestsBtn = document.getElementById('importTestsBtn');
+        const confirmImportBtn = document.getElementById('confirmImportTestsBtn');
+        const providerSelect = document.getElementById('importProviderSelect');
+        const importModalEl = document.getElementById('importTestsModal');
+        const importModal = importModalEl ? new bootstrap.Modal(importModalEl) : null;
+        const jiraTemplateUrl = (testSuiteNode?.dataset?.jiraBugCreateUrl || '').trim();
+
+        const setImportLoading = (isLoading) => {
+            if (!confirmImportBtn) return;
+            const text = confirmImportBtn.querySelector('.import-btn-text');
+            const spinner = confirmImportBtn.querySelector('.import-btn-spinner');
+            confirmImportBtn.disabled = isLoading;
+            if (text) text.textContent = isLoading ? 'Импорт...' : 'Импортировать';
+            if (spinner) spinner.classList.toggle('d-none', !isLoading);
+        };
+
+        const openJiraCreateIssue = () => {
+            if (!jiraTemplateUrl) {
+                showMessage(
+                    'Для этого проекта не настроена Jira-ссылка. Админ: Админка → Интеграции проектов.',
+                    'warning'
+                );
+                return;
+            }
+            let urlString = jiraTemplateUrl;
+            try {
+                const url = new URL(jiraTemplateUrl, window.location.origin);
+                if (currentTestCaseData) {
+                    const summary = `[QMS] ${currentTestCaseData.name || `TC-${currentTestCaseData.id}`}`;
+                    const description = [
+                        `Источник: QMS`,
+                        `Сьют: ${document.title || ''}`,
+                        `Тест-кейс: ${currentTestCaseData.name || ''}`,
+                        `Описание: ${currentTestCaseData.description || '-'}`,
+                        `Предусловия: ${currentTestCaseData.preconditions || '-'}`,
+                    ].join('\n');
+                    if (!url.searchParams.get('summary')) {
+                        url.searchParams.set('summary', summary);
+                    }
+                    if (!url.searchParams.get('description')) {
+                        url.searchParams.set('description', description);
+                    }
+                }
+                urlString = url.toString();
+            } catch (err) {
+                console.debug('Jira URL parse warning:', err);
+            }
+            window.open(urlString, '_blank', 'noopener,noreferrer');
+        };
+
+        if (bugReportBtn) {
+            bugReportBtn.addEventListener('click', openJiraCreateIssue);
+        }
+        if (importTestsBtn && importModal) {
+            importTestsBtn.addEventListener('click', () => importModal.show());
+        }
+        if (confirmImportBtn) {
+            confirmImportBtn.addEventListener('click', () => {
+                const provider = providerSelect?.value;
+                if (!provider) {
+                    showMessage('Выберите источник импорта', 'warning');
+                    return;
+                }
+                setImportLoading(true);
+                fetch(`/api/test-suites/${testSuiteData.id}/import-test-cases`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ provider }),
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (!data.success) {
+                            showMessage(data.message || 'Ошибка импорта тестов', 'danger');
+                            return;
+                        }
+                        showMessage(
+                            `${data.message}. Источник: ${provider.toUpperCase()}`,
+                            'success'
+                        );
+                        if (importModal) importModal.hide();
+                        loadTestCases(testSuiteData.id);
+                    })
+                    .catch(error => {
+                        console.error('Ошибка импорта тестов:', error);
+                        showMessage('Ошибка при импорте тест-кейсов', 'danger');
+                    })
+                    .finally(() => {
+                        setImportLoading(false);
+                    });
+            });
+        }
     }
 
     // Инициализация обработчика AI анализа

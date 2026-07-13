@@ -2,6 +2,7 @@ from datetime import timedelta
 from html import escape
 import re
 import logging
+from urllib.parse import urljoin
 
 import requests
 from django.db import transaction
@@ -14,11 +15,14 @@ from .models import (
     AIProviderSettings,
     Comment,
     Project,
+    ProjectIntegrationSettings,
     TestCase,
     TestCaseReview,
     TestCaseUserStory,
     TestRun,
     TestRunTestCase,
+    TestSuite,
+    TestStep,
     TraceabilityMatrix,
     TraceabilityAIReview,
     User,
@@ -632,3 +636,244 @@ def _fallback_review_score(test_case: TestCase) -> int:
     if test_case.priority in {TestCase.Priority.HIGH, TestCase.Priority.CRITICAL}:
         score += 1
     return min(score, 10)
+
+
+def import_test_cases_from_provider(test_suite_id: int, provider: str):
+    suite = TestSuite.objects.select_related("project").filter(id=test_suite_id).first()
+    if not suite:
+        return build_api_response(False, "Тест-сьют не найден")
+
+    settings = ProjectIntegrationSettings.objects.filter(project_id=suite.project_id).first()
+    if not settings:
+        return build_api_response(False, "Для проекта не настроены интеграции. Откройте админку.")
+
+    provider_key = (provider or "").strip().lower()
+    if provider_key == "allure":
+        rows, error = _fetch_from_allure(settings)
+    elif provider_key == "testit":
+        rows, error = _fetch_from_testit(settings)
+    else:
+        return build_api_response(False, "Неизвестный провайдер импорта. Доступно: allure, testit")
+
+    if error:
+        return build_api_response(False, error)
+    if not rows:
+        return build_api_response(False, "Не удалось найти тест-кейсы у выбранного провайдера")
+
+    created = 0
+    skipped = 0
+    imported_case_ids = []
+    existing_names = set(
+        TestCase.objects.filter(test_suite_id=test_suite_id).values_list("name", flat=True)
+    )
+    next_index = TestCase.objects.filter(test_suite_id=test_suite_id).count() + 1
+
+    for row in rows:
+        name = (row.get("name") or "").strip()
+        if not name:
+            name = f"Imported {provider_key.upper()} TC #{next_index}"
+            next_index += 1
+        if name in existing_names:
+            skipped += 1
+            continue
+
+        case = TestCase.objects.create(
+            test_suite_id=test_suite_id,
+            name=name[:255],
+            description=row.get("description"),
+            preconditions=row.get("preconditions"),
+            priority=TestCase.Priority.MEDIUM,
+            status=TestCase.Status.DRAFT,
+        )
+        existing_names.add(name)
+        created += 1
+        imported_case_ids.append(case.id)
+
+        step_rows = row.get("steps") or []
+        if isinstance(step_rows, list):
+            step_objects = []
+            for idx, step in enumerate(step_rows, start=1):
+                if isinstance(step, dict):
+                    action = (step.get("action") or step.get("name") or "").strip()
+                    expected = (
+                        step.get("expected_result")
+                        or step.get("expectedResult")
+                        or step.get("expected")
+                        or step.get("result")
+                    )
+                else:
+                    action = str(step).strip()
+                    expected = None
+                if not action:
+                    continue
+                step_objects.append(
+                    TestStep(
+                        test_case=case,
+                        step_number=idx,
+                        action=action,
+                        expected_result=expected,
+                    )
+                )
+            if step_objects:
+                TestStep.objects.bulk_create(step_objects, batch_size=200)
+
+    return build_api_response(
+        True,
+        f"Импорт завершен: создано {created}, пропущено {skipped}",
+        provider=provider_key,
+        created_count=created,
+        skipped_count=skipped,
+        imported_case_ids=imported_case_ids,
+    )
+
+
+def _fetch_from_allure(settings: ProjectIntegrationSettings):
+    if not settings.allure_base_url or not settings.allure_api_token or not settings.allure_project_id:
+        return [], "Для Allure TestOps заполните base URL, project id и API token в админке."
+
+    base_url = settings.allure_base_url.rstrip("/") + "/"
+    project_id = settings.allure_project_id.strip()
+    token = settings.allure_api_token.strip()
+    candidate_paths = [
+        f"api/rs/testcase?projectId={project_id}&size=500&page=0",
+        f"api/rs/testcase?projectId={project_id}",
+        f"api/rs/test-cases?projectId={project_id}&size=500&page=0",
+    ]
+    last_error = None
+    for path in candidate_paths:
+        url = urljoin(base_url, path)
+        headers_list = [
+            {"Authorization": f"Api-Token {token}", "Accept": "application/json"},
+            {"Authorization": f"Bearer {token}", "Accept": "application/json"},
+            {"X-Api-Token": token, "Accept": "application/json"},
+        ]
+        for headers in headers_list:
+            try:
+                response = requests.get(url, headers=headers, timeout=45)
+            except requests.RequestException as exc:
+                last_error = f"Ошибка подключения к Allure TestOps: {exc}"
+                continue
+            if response.status_code >= 400:
+                last_error = (
+                    f"Allure вернул HTTP {response.status_code} для {url}. "
+                    f"Проверьте URL/токен/доступы."
+                )
+                continue
+            try:
+                payload = response.json()
+            except ValueError:
+                last_error = "Allure вернул не-JSON ответ."
+                continue
+            rows = _extract_allure_cases(payload)
+            if rows:
+                return rows, None
+    return [], (last_error or "Не удалось получить тест-кейсы из Allure TestOps.")
+
+
+def _extract_allure_cases(payload):
+    if isinstance(payload, list):
+        items = payload
+    elif isinstance(payload, dict):
+        items = payload.get("content") or payload.get("items") or payload.get("results") or payload.get("data") or []
+    else:
+        items = []
+    normalized = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        steps_raw = item.get("steps") or item.get("testSteps") or item.get("scenario") or []
+        normalized.append(
+            {
+                "name": item.get("name") or item.get("title"),
+                "description": item.get("description") or item.get("descriptionHtml"),
+                "preconditions": item.get("precondition") or item.get("preconditions"),
+                "steps": _normalize_steps(steps_raw),
+            }
+        )
+    return normalized
+
+
+def _fetch_from_testit(settings: ProjectIntegrationSettings):
+    if not settings.testit_base_url or not settings.testit_private_token or not settings.testit_project_id:
+        return [], "Для TestIT заполните base URL, project id и private token в админке."
+
+    base_url = settings.testit_base_url.rstrip("/") + "/"
+    project_id = settings.testit_project_id.strip()
+    token = settings.testit_private_token.strip()
+    candidate_paths = [
+        f"api/v2/testCases?projectId={project_id}",
+        f"api/v2/test-cases?projectId={project_id}",
+    ]
+    last_error = None
+    for path in candidate_paths:
+        url = urljoin(base_url, path)
+        headers_list = [
+            {"PrivateToken": token, "Accept": "application/json"},
+            {"Authorization": f"Bearer {token}", "Accept": "application/json"},
+        ]
+        for headers in headers_list:
+            try:
+                response = requests.get(url, headers=headers, timeout=45)
+            except requests.RequestException as exc:
+                last_error = f"Ошибка подключения к TestIT: {exc}"
+                continue
+            if response.status_code >= 400:
+                last_error = (
+                    f"TestIT вернул HTTP {response.status_code} для {url}. "
+                    f"Проверьте URL/токен/доступы."
+                )
+                continue
+            try:
+                payload = response.json()
+            except ValueError:
+                last_error = "TestIT вернул не-JSON ответ."
+                continue
+            rows = _extract_testit_cases(payload)
+            if rows:
+                return rows, None
+    return [], (last_error or "Не удалось получить тест-кейсы из TestIT.")
+
+
+def _extract_testit_cases(payload):
+    if isinstance(payload, list):
+        items = payload
+    elif isinstance(payload, dict):
+        items = payload.get("items") or payload.get("content") or payload.get("results") or payload.get("data") or []
+    else:
+        items = []
+    normalized = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        steps_raw = item.get("steps") or item.get("testSteps") or item.get("stepResults") or []
+        normalized.append(
+            {
+                "name": item.get("name") or item.get("title"),
+                "description": item.get("description"),
+                "preconditions": item.get("preconditions"),
+                "steps": _normalize_steps(steps_raw),
+            }
+        )
+    return normalized
+
+
+def _normalize_steps(steps_raw):
+    if not isinstance(steps_raw, list):
+        return []
+    normalized = []
+    for step in steps_raw:
+        if isinstance(step, dict):
+            normalized.append(
+                {
+                    "action": step.get("action") or step.get("title") or step.get("name") or step.get("description"),
+                    "expected_result": (
+                        step.get("expected_result")
+                        or step.get("expectedResult")
+                        or step.get("expected")
+                        or step.get("result")
+                    ),
+                }
+            )
+        else:
+            normalized.append({"action": str(step), "expected_result": None})
+    return normalized
