@@ -1710,7 +1710,29 @@
                     </div>
                 `).join('');
                 addTestCaseClickHandlers();
-                applyRequestedTestCaseSelection(testCases);
+
+                const requestedApplied = applyRequestedTestCaseSelection(testCases);
+                if (!requestedApplied) {
+                    const requestedId = getRequestedTestCaseIdFromUrl();
+                    const currentId = currentTestCaseData ? String(currentTestCaseData.id) : null;
+                    const currentExists = currentId
+                        ? testCases.some(tc => String(tc.id) === currentId)
+                        : false;
+
+                    if (currentExists) {
+                        const currentElement = document.getElementById(`test-case-item-${currentId}`);
+                        if (currentElement) {
+                            setActiveTestCase(currentElement);
+                        }
+                    } else if (!requestedId && testCases.length > 0) {
+                        const firstTestCaseId = testCases[0].id;
+                        loadTestCaseDetail(firstTestCaseId);
+                        const firstElement = document.getElementById(`test-case-item-${firstTestCaseId}`);
+                        if (firstElement) {
+                            setActiveTestCase(firstElement);
+                        }
+                    }
+                }
                 requestAnimationFrame(syncWorkspaceHeight);
             })
             .catch(error => {
