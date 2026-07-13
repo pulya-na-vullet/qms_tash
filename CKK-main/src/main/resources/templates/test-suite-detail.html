@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -931,7 +931,7 @@
             }, 500);
         }
 
-        // Always hydrate the left list from API; Thymeleaf placeholders are not usable in Django runtime.
+        // Always hydrate the left list from API at runtime.
         loadTestCases(testSuiteData.id);
         initializeTestCaseSearch(testSuiteData.id);
         initializeKeyboardNavigation();
