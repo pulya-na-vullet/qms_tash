@@ -919,6 +919,21 @@
         const usTcModal = usTcModalEl ? new bootstrap.Modal(usTcModalEl) : null;
         const currentProjectId = document.getElementById('projectData')?.dataset?.projectId || '';
 
+        const normalizeTcNavigationUrl = (rawUrl, tcId) => {
+            try {
+                if (rawUrl) {
+                    const normalized = new URL(rawUrl, window.location.origin);
+                    if (tcId && !normalized.searchParams.get('testCaseId')) {
+                        normalized.searchParams.set('testCaseId', String(tcId));
+                    }
+                    return normalized.toString();
+                }
+            } catch (_) {
+                // ignore and fallback below
+            }
+            return '';
+        };
+
         const getIntersections = (row) => {
             const intersections = [];
             const headers = table.querySelectorAll('thead th.test-case-header');
@@ -930,8 +945,8 @@
                 const tcLink = th?.querySelector('.rotated-link');
                 const tcId = tcLink?.dataset?.testCaseId || idx;
                 const tcLabel = tcLink?.textContent?.trim() || `TC-${tcId}`;
-                const tcUrl = tcLink?.getAttribute('href') || '';
-                intersections.push({ id: tcId, label: tcLabel, url: tcUrl });
+                const tcUrl = normalizeTcNavigationUrl(tcLink?.getAttribute('href') || '', tcId);
+                intersections.push({ id: String(tcId), label: tcLabel, url: tcUrl });
             });
             return intersections;
         };
@@ -1022,19 +1037,32 @@
                     });
                 }
                 usTcModalBodyEl.querySelectorAll('.open-us-tc-btn').forEach(btn => {
-                    btn.addEventListener('click', () => {
-                        const tcUrl = (btn.dataset.testCaseUrl || '').trim();
+                    btn.addEventListener('click', async () => {
+                        const tcId = (btn.dataset.testCaseId || '').trim();
+                        const tcUrlRaw = (btn.dataset.testCaseUrl || '').trim();
+                        const tcUrl = normalizeTcNavigationUrl(tcUrlRaw, tcId);
                         if (tcUrl) {
                             window.location.href = tcUrl;
                             return;
                         }
-                        const tcId = (btn.dataset.testCaseId || '').trim();
-                        if (tcId) {
-                            if (currentProjectId) {
-                                window.location.href = `/test-suite/${currentProjectId}?testCaseId=${tcId}`;
-                            } else {
-                                openTestCaseModal(tcId);
+                        if (!tcId) {
+                            showMessage('Не удалось определить ID тест-кейса', 'danger');
+                            return;
+                        }
+                        try {
+                            const response = await fetch(`/api/test-cases/${tcId}`);
+                            const data = await response.json();
+                            if (data.success && data.testCase && data.testCase.testSuiteId) {
+                                window.location.href = `/test-suite/${data.testCase.testSuiteId}?testCaseId=${tcId}`;
+                                return;
                             }
+                        } catch (_) {
+                            // fallback below
+                        }
+                        if (currentProjectId) {
+                            window.location.href = `/project/${currentProjectId}/traceability-matrix`;
+                        } else {
+                            showMessage('Не удалось построить ссылку на тест-кейс', 'danger');
                         }
                     });
                 });
