@@ -1073,7 +1073,7 @@ def ai_review_suite(request, test_suite_id):
         job.save()
     _create_ai_activity_log(
         action_type=AIActivityLog.ActionType.REVIEW_TEST_SUITE,
-        status=AIActivityLog.Status.SUCCESS,
+        status=AIActivityLog.Status.RUNNING,
         initiated_by=core_user,
         project=test_suite.project if test_suite else None,
         test_suite=test_suite,
@@ -1124,6 +1124,28 @@ def ai_review_suite_queue_next(request, test_suite_id):
             job.finished_at = timezone.now()
         job.save()
 
+    if completed:
+        suite_activity = (
+            AIActivityLog.objects.filter(
+                action_type=AIActivityLog.ActionType.REVIEW_TEST_SUITE,
+                test_suite_id=test_suite_id,
+                status=AIActivityLog.Status.RUNNING,
+                finished_at__isnull=True,
+            )
+            .order_by("-started_at", "-id")
+            .first()
+        )
+        if suite_activity:
+            suite_activity.status = (
+                AIActivityLog.Status.SUCCESS if job.failed_cases == 0 else AIActivityLog.Status.FAILED
+            )
+            suite_activity.message = (
+                f"Массовое ревью завершено: обработано {job.processed_cases}/{job.total_cases}, "
+                f"успешно {job.success_cases}, ошибки {job.failed_cases}"
+            )
+            suite_activity.finished_at = timezone.now()
+            suite_activity.save(update_fields=["status", "message", "finished_at", "updated_at"])
+
     return JsonResponse(
         build_api_response(
             True,
@@ -1150,6 +1172,7 @@ def ai_review_suite_queue_status(request, test_suite_id):
 def ai_review_case(request, test_case_id):
     core_user = _resolve_core_user(request)
     test_case = TestCase.objects.select_related("test_suite__project").filter(id=test_case_id).first()
+    test_case_label = test_case.name if test_case and test_case.name else f"TC-{test_case_id}"
     activity = _create_ai_activity_log(
         action_type=AIActivityLog.ActionType.REVIEW_TEST_CASE,
         status=AIActivityLog.Status.RUNNING,
@@ -1157,12 +1180,12 @@ def ai_review_case(request, test_case_id):
         project=test_case.test_suite.project if test_case and test_case.test_suite else None,
         test_suite=test_case.test_suite if test_case else None,
         test_case=test_case,
-        message=f"Запуск ревью TC-{test_case_id}",
+        message=f"Запуск ревью: {test_case_label}",
     )
     review = create_or_update_review(test_case_id)
     activity.status = AIActivityLog.Status.SUCCESS if review else AIActivityLog.Status.FAILED
     activity.message = (
-        f"AI ревью завершено для TC-{test_case_id}" if review else f"AI ревью не выполнено для TC-{test_case_id}"
+        f"AI ревью завершено: {test_case_label}" if review else f"AI ревью не выполнено: {test_case_label}"
     )
     activity.finished_at = timezone.now()
     activity.save(update_fields=["status", "message", "finished_at", "updated_at"])
