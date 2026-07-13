@@ -39,12 +39,15 @@
 
         /* === СТИЛИ МАТРИЦЫ === */
         .matrix-wrapper {
-            overflow-x: auto;
+            overflow: auto;
+            max-height: 72vh;
             padding: 15px;
             cursor: default;
+            position: relative;
         }
         .matrix-wrapper.grab-enabled {
             cursor: grab;
+            touch-action: pan-y;
         }
         .matrix-wrapper.grab-enabled.dragging {
             cursor: grabbing;
@@ -66,6 +69,37 @@
             font-size: 0.8rem;
             color: #6c757d;
             margin: 0 15px 8px 15px;
+        }
+        .matrix-minimap {
+            position: absolute;
+            right: 16px;
+            bottom: 16px;
+            width: 220px;
+            height: 130px;
+            border: 1px solid #ced4da;
+            border-radius: 10px;
+            background: rgba(248, 249, 250, 0.95);
+            box-shadow: 0 3px 12px rgba(0, 0, 0, 0.12);
+            z-index: 40;
+            overflow: hidden;
+            cursor: crosshair;
+        }
+        .matrix-minimap-grid {
+            position: absolute;
+            inset: 0;
+            background-image:
+                linear-gradient(to right, rgba(108, 117, 125, 0.15) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(108, 117, 125, 0.15) 1px, transparent 1px);
+            background-size: 16px 16px;
+        }
+        .matrix-minimap-viewport {
+            position: absolute;
+            border: 2px solid #0d6efd;
+            border-radius: 4px;
+            background: rgba(13, 110, 253, 0.12);
+            pointer-events: none;
+            min-width: 10px;
+            min-height: 10px;
         }
 
         .traceability-table {
@@ -497,6 +531,10 @@
                         {% else %}
                             {{ matrixHtml|safe }}
                         {% endif %}
+                        <div class="matrix-minimap d-none" id="matrixMiniMap">
+                            <div class="matrix-minimap-grid"></div>
+                            <div class="matrix-minimap-viewport" id="matrixMiniViewport"></div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -607,26 +645,52 @@
         const wrapper = document.getElementById('matrixWrapper');
         const topScroll = document.getElementById('matrixTopScroll');
         const topInner = document.getElementById('matrixTopScrollInner');
-        if (!wrapper || !topScroll || !topInner) return;
+        const miniMap = document.getElementById('matrixMiniMap');
+        const miniViewport = document.getElementById('matrixMiniViewport');
+        if (!wrapper || !topScroll || !topInner || !miniMap || !miniViewport) return;
 
         const table = wrapper.querySelector('.traceability-table');
         if (!table) return;
 
         let isDragging = false;
         let startX = 0;
+        let startY = 0;
         let startScrollLeft = 0;
+        let startScrollTop = 0;
         let syncLock = false;
+        let movedWhileDragging = false;
 
         const hasHorizontalOverflow = () => table.scrollWidth > wrapper.clientWidth + 2;
+        const hasVerticalOverflow = () => table.scrollHeight > wrapper.clientHeight + 2;
+
+        const updateMiniMap = () => {
+            const mmWidth = miniMap.clientWidth;
+            const mmHeight = miniMap.clientHeight;
+            const scaleX = mmWidth / Math.max(table.scrollWidth, 1);
+            const scaleY = mmHeight / Math.max(table.scrollHeight, 1);
+
+            const viewLeft = wrapper.scrollLeft * scaleX;
+            const viewTop = wrapper.scrollTop * scaleY;
+            const viewWidth = Math.max(wrapper.clientWidth * scaleX, 10);
+            const viewHeight = Math.max(wrapper.clientHeight * scaleY, 10);
+
+            miniViewport.style.left = `${viewLeft}px`;
+            miniViewport.style.top = `${viewTop}px`;
+            miniViewport.style.width = `${Math.min(viewWidth, mmWidth)}px`;
+            miniViewport.style.height = `${Math.min(viewHeight, mmHeight)}px`;
+        };
 
         const updateTopScrollbar = () => {
             const overflow = hasHorizontalOverflow();
+            const overflowAny = overflow || hasVerticalOverflow();
             topScroll.classList.toggle('d-none', !overflow);
-            wrapper.classList.toggle('grab-enabled', overflow);
+            miniMap.classList.toggle('d-none', !overflowAny);
+            wrapper.classList.toggle('grab-enabled', overflowAny);
             topInner.style.width = `${table.scrollWidth}px`;
             if (!overflow) {
                 wrapper.classList.remove('dragging');
             }
+            updateMiniMap();
         };
 
         wrapper.addEventListener('scroll', () => {
@@ -634,6 +698,7 @@
             syncLock = true;
             topScroll.scrollLeft = wrapper.scrollLeft;
             syncLock = false;
+            updateMiniMap();
         });
 
         topScroll.addEventListener('scroll', () => {
@@ -651,15 +716,18 @@
             }
         }, { passive: false });
 
-        wrapper.addEventListener('mousedown', (e) => {
-            if (!hasHorizontalOverflow()) return;
-            if (e.button !== 0) return;
-            if (e.target.closest('a, button, input, textarea, select, label, .btn')) return;
+        wrapper.addEventListener('pointerdown', (e) => {
+            if (!(hasHorizontalOverflow() || hasVerticalOverflow())) return;
+            if (e.pointerType === 'mouse' && e.button !== 0) return;
+            if (e.target.closest('button, input, textarea, select, label, .btn')) return;
             isDragging = true;
-            startX = e.pageX;
+            movedWhileDragging = false;
+            startX = e.clientX;
+            startY = e.clientY;
             startScrollLeft = wrapper.scrollLeft;
+            startScrollTop = wrapper.scrollTop;
             wrapper.classList.add('dragging');
-            e.preventDefault();
+            wrapper.setPointerCapture?.(e.pointerId);
         });
 
         const stopDragging = () => {
@@ -668,14 +736,38 @@
             wrapper.classList.remove('dragging');
         };
 
-        wrapper.addEventListener('mousemove', (e) => {
+        wrapper.addEventListener('pointermove', (e) => {
             if (!isDragging) return;
-            const walk = e.pageX - startX;
-            wrapper.scrollLeft = startScrollLeft - walk;
+            const walkX = e.clientX - startX;
+            const walkY = e.clientY - startY;
+            if (Math.abs(walkX) > 3 || Math.abs(walkY) > 3) {
+                movedWhileDragging = true;
+            }
+            wrapper.scrollLeft = startScrollLeft - walkX;
+            wrapper.scrollTop = startScrollTop - walkY;
         });
-        wrapper.addEventListener('mouseleave', stopDragging);
-        wrapper.addEventListener('mouseup', stopDragging);
-        window.addEventListener('mouseup', stopDragging);
+        wrapper.addEventListener('pointercancel', stopDragging);
+        wrapper.addEventListener('pointerup', stopDragging);
+        wrapper.addEventListener('lostpointercapture', stopDragging);
+
+        wrapper.addEventListener('click', (e) => {
+            if (movedWhileDragging) {
+                e.preventDefault();
+                e.stopPropagation();
+                movedWhileDragging = false;
+            }
+        }, true);
+
+        miniMap.addEventListener('click', (e) => {
+            const rect = miniMap.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            const targetLeft = (x / rect.width) * table.scrollWidth - (wrapper.clientWidth / 2);
+            const targetTop = (y / rect.height) * table.scrollHeight - (wrapper.clientHeight / 2);
+            wrapper.scrollLeft = Math.max(0, Math.min(targetLeft, table.scrollWidth - wrapper.clientWidth));
+            wrapper.scrollTop = Math.max(0, Math.min(targetTop, table.scrollHeight - wrapper.clientHeight));
+            updateMiniMap();
+        });
 
         updateTopScrollbar();
         window.addEventListener('resize', updateTopScrollbar);
@@ -784,55 +876,87 @@
     }
 
     function initializeMatrixPreviews() {
-        document.querySelectorAll('.rotated-link[data-bs-toggle="popover"]').forEach(el => {
-            const popover = new bootstrap.Popover(el, {
-                html: true,
-                trigger: 'hover focus',
-                placement: 'auto',
-                customClass: 'tc-preview-popover',
-                content: 'Загрузка...'
-            });
+        const instances = new WeakMap();
+        let activeElement = null;
+        let hideTimeoutId = null;
 
-            el.addEventListener('show.bs.popover', async function () {
-                const testCaseId = this.dataset.testCaseId;
-                if (!testCaseId) return;
+        const ensurePopover = (el) => {
+            let popover = instances.get(el);
+            if (!popover) {
+                popover = new bootstrap.Popover(el, {
+                    html: true,
+                    trigger: 'manual',
+                    placement: 'auto',
+                    customClass: 'tc-preview-popover',
+                    content: 'Загрузка...'
+                });
+                instances.set(el, popover);
+            }
+            return popover;
+        };
 
-                if (matrixPreviewCache.has(testCaseId)) {
-                    popover.setContent({
-                        '.popover-header': `TC-${testCaseId}`,
-                        '.popover-body': matrixPreviewCache.get(testCaseId)
-                    });
-                    return;
-                }
-
+        const fillPopoverContent = async (el, popover) => {
+            const testCaseId = el.dataset.testCaseId;
+            if (!testCaseId) return;
+            if (matrixPreviewCache.has(testCaseId)) {
                 popover.setContent({
                     '.popover-header': `TC-${testCaseId}`,
-                    '.popover-body': 'Загрузка деталей тест-кейса...'
+                    '.popover-body': matrixPreviewCache.get(testCaseId)
                 });
-
-                try {
-                    const response = await fetch(`/api/test-cases/${testCaseId}`);
-                    const data = await response.json();
-                    if (data.success && data.testCase) {
-                        const html = buildPreviewHtml(data.testCase);
-                        matrixPreviewCache.set(testCaseId, html);
-                        popover.setContent({
-                            '.popover-header': data.testCase.name || `TC-${testCaseId}`,
-                            '.popover-body': html
-                        });
-                    } else {
-                        popover.setContent({
-                            '.popover-header': `TC-${testCaseId}`,
-                            '.popover-body': 'Не удалось загрузить детали тест-кейса.'
-                        });
-                    }
-                } catch (_) {
+                return;
+            }
+            popover.setContent({
+                '.popover-header': `TC-${testCaseId}`,
+                '.popover-body': 'Загрузка деталей тест-кейса...'
+            });
+            try {
+                const response = await fetch(`/api/test-cases/${testCaseId}`);
+                const data = await response.json();
+                if (data.success && data.testCase) {
+                    const html = buildPreviewHtml(data.testCase);
+                    matrixPreviewCache.set(testCaseId, html);
+                    popover.setContent({
+                        '.popover-header': data.testCase.name || `TC-${testCaseId}`,
+                        '.popover-body': html
+                    });
+                } else {
                     popover.setContent({
                         '.popover-header': `TC-${testCaseId}`,
-                        '.popover-body': 'Ошибка загрузки деталей тест-кейса.'
+                        '.popover-body': 'Не удалось загрузить детали тест-кейса.'
                     });
                 }
-            });
+            } catch (_) {
+                popover.setContent({
+                    '.popover-header': `TC-${testCaseId}`,
+                    '.popover-body': 'Ошибка загрузки деталей тест-кейса.'
+                });
+            }
+        };
+
+        document.addEventListener('mouseover', async (e) => {
+            const el = e.target.closest('.rotated-link[data-bs-toggle="popover"]');
+            if (!el) return;
+            if (hideTimeoutId) {
+                clearTimeout(hideTimeoutId);
+                hideTimeoutId = null;
+            }
+            activeElement = el;
+            const popover = ensurePopover(el);
+            await fillPopoverContent(el, popover);
+            if (activeElement === el) {
+                popover.show();
+            }
+        });
+
+        document.addEventListener('mouseout', (e) => {
+            const el = e.target.closest('.rotated-link[data-bs-toggle="popover"]');
+            if (!el) return;
+            const popover = instances.get(el);
+            if (!popover) return;
+            hideTimeoutId = setTimeout(() => {
+                popover.hide();
+                if (activeElement === el) activeElement = null;
+            }, 80);
         });
     }
 
