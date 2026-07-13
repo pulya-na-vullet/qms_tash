@@ -180,17 +180,34 @@
             color: #6c757d;
         }
         #testCasesList {
-            max-height: calc(100vh - 200px);
+            flex: 1 1 auto;
+            min-height: 0;
             overflow-y: auto;
+        }
+        #testCasesContainer {
+            min-height: 100%;
+        }
+        .workspace-row {
+            min-height: calc(100vh - 250px);
+        }
+        .workspace-row > [class*="col-"] {
+            display: flex;
+            min-height: 0;
+        }
+        .workspace-row > [class*="col-"] > .card {
+            flex: 1 1 auto;
+            min-height: 0;
         }
         .detail-card {
             height: 100%;
             display: flex;
             flex-direction: column;
+            min-height: 0;
         }
         .detail-card .card-body {
             flex: 1;
             overflow-y: auto;
+            min-height: 0;
         }
         .tag-badge {
             display: inline-block;
@@ -608,7 +625,7 @@
         </form>
     </div>
 
-    <div class="row">
+    <div class="row workspace-row">
         <!-- Заголовок тест-сьюта -->
         <div class="col-12 mb-4">
             <div class="test-suite-header">
