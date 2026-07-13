@@ -309,6 +309,16 @@ def analyze_traceability_model_quality(project_id: int, force_refresh: bool = Fa
     if ai_settings:
         prompt = _build_traceability_quality_prompt(project, user_stories, us_to_tc_ids, test_case_map)
         response_text, error_message = _request_yandex_completion(ai_settings, prompt, max_tokens=2200)
+        if not response_text and error_message and "number of input tokens" in error_message.lower():
+            # Retry with a stricter compact prompt when provider reports context overflow.
+            compact_prompt = _build_traceability_quality_prompt(
+                project,
+                user_stories,
+                us_to_tc_ids,
+                test_case_map,
+                compact_mode=True,
+            )
+            response_text, error_message = _request_yandex_completion(ai_settings, compact_prompt, max_tokens=2200)
         if not response_text:
             return build_api_response(
                 False,
@@ -478,44 +488,79 @@ def _build_traceability_quality_prompt(
     user_stories: list[UserStory],
     us_to_tc_ids: dict[int, list[int]],
     test_case_map: dict[int, TestCase],
+    compact_mode: bool = False,
 ) -> str:
-    blocks = []
-    for us in user_stories:
+    def clip(text: str | None, limit: int) -> str:
+        value = (text or "").strip()
+        if len(value) <= limit:
+            return value or "-"
+        return value[: max(limit - 1, 1)] + "…"
+
+    def has_negative_signs(tc: TestCase) -> bool:
+        source = f"{tc.name or ''} {tc.description or ''}".lower()
+        markers = ("негатив", "ошибк", "invalid", "невер", "отказ", "fail", "forbidden", "denied")
+        return any(marker in source for marker in markers)
+
+    us_limit = 60 if compact_mode else 120
+    tc_per_us_limit = 2 if compact_mode else 4
+    steps_per_tc_limit = 1 if compact_mode else 3
+    max_prompt_chars = 14000 if compact_mode else 28000
+
+    header = (
+        f"Оцени качество тестовой модели проекта '{project.name}'.\n\n"
+        "Для каждой User Story:\n"
+        "1) оцени полноту покрытия тестами;\n"
+        "2) оцени качество тестов (ясность шагов, ожидаемые результаты);\n"
+        "3) отметь наличие/отсутствие негативных проверок;\n"
+        "4) дай оценку 1-10 по каждой US.\n\n"
+        "В конце дай итоговую оценку всей модели 1-10 и 5 приоритетных улучшений.\n"
+        "Отвечай на русском языке, структурированно и практично.\n\n"
+        "Данные по US и ТК:\n"
+    )
+
+    blocks: list[str] = []
+    chars_used = len(header)
+    truncated = False
+    for us in user_stories[:us_limit]:
         linked_tc_ids = us_to_tc_ids.get(us.id, [])
         if not linked_tc_ids:
             tc_block = "Нет связанных тест-кейсов."
         else:
             tc_lines = []
-            for tc_id in linked_tc_ids[:20]:
+            for tc_id in linked_tc_ids[:tc_per_us_limit]:
                 tc = test_case_map.get(tc_id)
                 if not tc:
                     continue
-                steps = list(tc.steps.all()[:10])
+                steps = list(tc.steps.all())[:steps_per_tc_limit]
                 steps_text = "; ".join(
-                    [f"{idx + 1}) {step.action or '-'} -> {step.expected_result or '-'}" for idx, step in enumerate(steps)]
+                    [f"{idx + 1}) {clip(step.action, 70)} -> {clip(step.expected_result, 70)}" for idx, step in enumerate(steps)]
                 ) or "шаги не описаны"
                 tc_lines.append(
-                    f"- TC-{tc.id}: {tc.name or '-'} | priority={tc.priority or '-'} | "
-                    f"description={tc.description or '-'} | preconditions={tc.preconditions or '-'} | steps={steps_text}"
+                    f"- TC-{tc.id}: {clip(tc.name, 90)} | p={tc.priority or '-'} | s={tc.status or '-'} | "
+                    f"neg={'да' if has_negative_signs(tc) else 'нет'} | steps={steps_text}"
                 )
             tc_block = "\n".join(tc_lines) if tc_lines else "Нет связанных тест-кейсов."
-        blocks.append(
-            f"US-{us.id}: {us.name or '-'}\n"
-            f"Критичность бизнеса: {us.business_criticality if us.business_criticality is not None else 'не задана'}\n"
-            f"Покрывающие тесты:\n{tc_block}"
+
+        us_block = (
+            f"\nUS-{us.id}: {clip(us.name, 140)}\n"
+            f"Критичность: {us.business_criticality if us.business_criticality is not None else 'не задана'}\n"
+            f"Покрывающие тесты:\n{tc_block}\n"
         )
 
-    return (
-        f"Оцени качество тестовой модели проекта '{project.name}'.\n\n"
-        "Для каждой User Story:\n"
-        "1) оцени покрытие (насколько полно US перекрыта тестами);\n"
-        "2) оцени качество тестов (ясность шагов, ожидаемые результаты, наличие негативных проверок);\n"
-        "3) явно укажи, есть ли негативные проверки или их не хватает;\n"
-        "4) дай оценку по шкале 1-10 для каждой US.\n\n"
-        "В конце дай итоговую оценку всей тестовой модели по шкале 1-10 и приоритетный список улучшений.\n"
-        "Отвечай на русском языке, структурированно и практично.\n\n"
-        f"Данные по US и ТК:\n\n{chr(10).join(blocks)}"
-    )
+        if chars_used + len(us_block) > max_prompt_chars:
+            truncated = True
+            break
+        blocks.append(us_block)
+        chars_used += len(us_block)
+
+    suffix = ""
+    if truncated or len(user_stories) > us_limit:
+        suffix = (
+            "\n\nПримечание: данные частично сокращены для соблюдения лимита контекста модели. "
+            "Сфокусируйся на выявлении системных рисков и пробелов покрытия."
+        )
+
+    return header + "".join(blocks) + suffix
 
 
 def _build_traceability_quality_fallback(
