@@ -182,15 +182,19 @@
         #testCasesList {
             flex: 1 1 auto;
             min-height: 0;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        #testCasesContainer {
+            flex: 1 1 auto;
+            min-height: 0;
             overflow-y: auto;
             overscroll-behavior-y: contain;
         }
-        #testCasesContainer {
-            height: auto;
-            min-height: 0;
-        }
         .workspace-row {
-            min-height: calc(100vh - 250px);
+            height: calc(100vh - 250px);
+            min-height: 520px;
         }
         .workspace-row > [class*="col-"] {
             display: flex;
@@ -210,6 +214,15 @@
             flex: 1;
             overflow-y: auto;
             min-height: 0;
+        }
+        @media (max-width: 991.98px) {
+            .workspace-row {
+                height: auto;
+                min-height: 0;
+            }
+            .workspace-row > [class*="col-"] {
+                display: block;
+            }
         }
         .tag-badge {
             display: inline-block;
@@ -627,7 +640,7 @@
         </form>
     </div>
 
-    <div class="row workspace-row">
+    <div class="row">
         <!-- Заголовок тест-сьюта -->
         <div class="col-12 mb-4">
             <div class="test-suite-header">
@@ -730,7 +743,7 @@
         </div>
     </div>
     <br>
-    <div class="row">
+    <div class="row workspace-row">
         <!-- Список тест-кейсов (1/3 экрана) -->
         <div class="col-md-4">
             <div class="card h-100">
