@@ -662,7 +662,6 @@
 <script>
     let currentTestCaseData = null;
     let availableTags = [];
-    let availableUserStories = [];
     let isEditingInModal = false;
     let currentCommentSort = 'desc'; // 'desc' - новые сверху, 'asc' - старые сверху
     const matrixPreviewCache = new Map();
@@ -680,7 +679,6 @@
         const projectId = document.getElementById('projectData').dataset.projectId;
         updateBackButtonLink(projectId);
         loadProjectTags(projectId);
-        loadProjectUserStories(projectId);
         initializeMatrixVirtualization();
         initializeUsFocusMode();
         initializeMatrixPreviews();
@@ -1322,13 +1320,6 @@
             .then(r => r.json())
             .then(tags => availableTags = tags)
             .catch(err => console.error('Ошибка загрузки тегов:', err));
-    }
-
-    function loadProjectUserStories(projectId) {
-        fetch(`/api/projects/${projectId}/user-stories`)
-            .then(r => r.json())
-            .then(us => availableUserStories = us)
-            .catch(err => console.error('Ошибка загрузки US:', err));
     }
 
     function openTestCaseModal(testCaseId) {

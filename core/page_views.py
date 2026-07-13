@@ -242,11 +242,14 @@ def traceability_matrix_page(request, project_id):
     project = Project.objects.filter(id=project_id).first()
     if not project:
         return redirect("/project-qa")
+    force_refresh = request.GET.get("refresh") in {"1", "true", "yes"}
+    matrix = TraceabilityMatrix.objects.filter(project_id=project_id).order_by("-created_at").first()
     try:
-        matrix = generate_and_store_matrix(project_id)
+        if force_refresh or not matrix:
+            matrix = generate_and_store_matrix(project_id)
     except Exception:
         # Fallback to latest stored matrix if regeneration fails for any reason.
-        matrix = TraceabilityMatrix.objects.filter(project_id=project_id).order_by("-created_at").first()
+        matrix = matrix or TraceabilityMatrix.objects.filter(project_id=project_id).order_by("-created_at").first()
     matrix_html = matrix.matrix_html if matrix else ""
     user_role = _resolve_user_role(request)
     core_user = CoreUser.objects.filter(username=request.user.username).first()

@@ -1,4 +1,6 @@
 import json
+import csv
+from io import StringIO
 
 from django.db.models import Q
 from django.db import transaction
@@ -1228,10 +1230,6 @@ def traceability_matrix_export_excel(request, project_id):
     if not project:
         return JsonResponse(build_api_response(False, "Проект не найден"), status=404)
 
-    from openpyxl import Workbook
-    from openpyxl.styles import Alignment, Font, PatternFill
-    from openpyxl.utils import get_column_letter
-
     user_stories = UserStory.objects.filter(section__project_id=project_id).order_by("id")
     test_cases = TestCase.objects.filter(test_suite__project_id=project_id).order_by("id")
     links = set(
@@ -1240,6 +1238,25 @@ def traceability_matrix_export_excel(request, project_id):
             user_story_id__in=user_stories.values_list("id", flat=True),
         ).values_list("test_case_id", "user_story_id")
     )
+
+    try:
+        from openpyxl import Workbook
+        from openpyxl.styles import Alignment, Font, PatternFill
+        from openpyxl.utils import get_column_letter
+    except ModuleNotFoundError:
+        csv_buffer = StringIO()
+        writer = csv.writer(csv_buffer, delimiter=";")
+        writer.writerow(["User Story \\ Test Case", *[f"TC-{tc.id}" for tc in test_cases]])
+        for us in user_stories:
+            row = [f"US-{us.id}: {us.name}"]
+            for tc in test_cases:
+                row.append("✓" if (tc.id, us.id) in links else "")
+            writer.writerow(row)
+        response = HttpResponse(csv_buffer.getvalue(), content_type="text/csv; charset=utf-8")
+        response["Content-Disposition"] = (
+            f'attachment; filename="coverage-matrix-project-{project_id}.csv"'
+        )
+        return response
 
     wb = Workbook()
     ws = wb.active
