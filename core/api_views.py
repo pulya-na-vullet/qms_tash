@@ -10,6 +10,7 @@ from django.views.decorators.http import require_http_methods
 
 from .models import (
     AIActivityLog,
+    AIAnalysis,
     Comment,
     Project,
     Section,
@@ -968,8 +969,22 @@ def test_runs_search(request, project_id):
 
 
 @csrf_exempt
-@require_http_methods(["POST"])
+@require_http_methods(["GET", "POST"])
 def ai_analysis_run(request, test_suite_id):
+    if request.method == "GET":
+        latest = AIAnalysis.objects.filter(test_suite_id=test_suite_id).order_by("-created_at", "-id").first()
+        if not latest:
+            return JsonResponse(build_api_response(False, "Анализ для этого сьюта еще не запускался"), status=404)
+        return JsonResponse(
+            build_api_response(
+                True,
+                "Загружен последний анализ",
+                analysis_id=latest.id,
+                response=latest.ai_response,
+                created_at=latest.created_at,
+            )
+        )
+
     core_user = _resolve_core_user(request)
     test_suite = TestSuite.objects.select_related("project").filter(id=test_suite_id).first()
     activity = _create_ai_activity_log(

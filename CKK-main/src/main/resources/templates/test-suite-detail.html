@@ -412,18 +412,46 @@
             position: relative;
             overflow: hidden;
         }
-        .ai-analysis-btn .spinner-border {
+        .ai-analysis-btn .spinner-wrap {
             position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
+            inset: 0;
             display: none;
+            align-items: center;
+            justify-content: center;
+            pointer-events: none;
+        }
+        .ai-analysis-btn .spinner-border {
+            display: inline-block;
         }
         .ai-analysis-btn.loading .btn-text {
-            visibility: hidden;
+            opacity: 0;
         }
-        .ai-analysis-btn.loading .spinner-border {
-            display: inline-block;
+        .ai-analysis-btn.loading .spinner-wrap {
+            display: flex;
+        }
+        .ai-analysis-result-toggle {
+            font-size: 0.85rem;
+        }
+        .ai-analysis-result-content {
+            max-height: 260px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-break: break-word;
+            margin: 0;
+            font-size: 0.9rem;
+        }
+        .ai-analysis-meta {
+            font-size: 0.8rem;
+            color: #6c757d;
+            margin-bottom: 0.5rem;
+        }
+        .ai-analysis-result-wrap .card {
+            border-color: #d6ecff;
+            background: #f7fbff;
+        }
+        .ai-analysis-result-empty {
+            color: #6c757d;
+            font-style: italic;
         }
         .comments-header {
             display: flex;
@@ -651,10 +679,31 @@
                                     <i class="fas fa-chart-bar me-2"></i>
                                     Анализ сьюта
                                 </span>
-                                <div class="spinner-border spinner-border-sm text-info" role="status">
-                                    <span class="visually-hidden">Loading...</span>
+                                <div class="spinner-wrap">
+                                    <div class="spinner-border spinner-border-sm text-info" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
                                 </div>
                             </button>
+                            <div class="mt-2 d-none ai-analysis-result-wrap" id="aiAnalysisResultWrap">
+                                <button
+                                    class="btn btn-outline-info btn-sm w-100 d-flex align-items-center justify-content-between ai-analysis-result-toggle"
+                                    type="button"
+                                    data-bs-toggle="collapse"
+                                    data-bs-target="#aiAnalysisResultCollapse"
+                                    aria-expanded="false"
+                                    aria-controls="aiAnalysisResultCollapse"
+                                >
+                                    <span><i class="fas fa-chevron-down me-2"></i>Результат анализа ИИ</span>
+                                    <span class="badge bg-info text-dark" id="aiAnalysisResultBadge">новый</span>
+                                </button>
+                                <div class="collapse mt-2" id="aiAnalysisResultCollapse">
+                                    <div class="card card-body">
+                                        <div class="ai-analysis-meta" id="aiAnalysisResultMeta">—</div>
+                                        <pre class="ai-analysis-result-content" id="aiAnalysisResultContent">—</pre>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1735,6 +1784,56 @@
     // Инициализация обработчика AI анализа
     function initializeAIAnalysisHandler() {
         const aiAnalysisBtn = document.getElementById('aiAnalysisBtn');
+        const resultWrap = document.getElementById('aiAnalysisResultWrap');
+        const resultMeta = document.getElementById('aiAnalysisResultMeta');
+        const resultContent = document.getElementById('aiAnalysisResultContent');
+        const resultBadge = document.getElementById('aiAnalysisResultBadge');
+        const resultCollapseEl = document.getElementById('aiAnalysisResultCollapse');
+        const resultCollapse = resultCollapseEl ? new bootstrap.Collapse(resultCollapseEl, { toggle: false }) : null;
+
+        function renderAnalysisResult(data, isFresh) {
+            const responseText = (data?.response || '').trim();
+            if (!responseText) {
+                resultWrap.classList.remove('d-none');
+                resultMeta.textContent = 'AI не вернул подробный текст анализа';
+                resultContent.textContent = 'Результат отсутствует';
+                resultContent.classList.add('ai-analysis-result-empty');
+                resultBadge.textContent = 'пусто';
+                resultBadge.className = 'badge bg-secondary';
+                return;
+            }
+
+            resultWrap.classList.remove('d-none');
+            resultContent.classList.remove('ai-analysis-result-empty');
+            resultContent.textContent = responseText;
+
+            const timestampRaw = data?.createdAt || data?.created_at || new Date().toISOString();
+            const ts = new Date(timestampRaw);
+            const tsDisplay = Number.isNaN(ts.getTime()) ? timestampRaw : ts.toLocaleString('ru-RU');
+            const sourceLabel = isFresh ? 'Новый ответ ИИ' : 'Последний сохраненный ответ ИИ';
+            resultMeta.textContent = `${sourceLabel}: ${tsDisplay}`;
+            resultBadge.textContent = isFresh ? 'новый' : 'кэш';
+            resultBadge.className = isFresh ? 'badge bg-success' : 'badge bg-info text-dark';
+
+            if (resultCollapse) {
+                resultCollapse.show();
+            }
+        }
+
+        function loadLastAnalysis() {
+            const testSuiteId = testSuiteData.id;
+            fetch(`/api/test-suites/${testSuiteId}/ai-analysis`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.response) {
+                        renderAnalysisResult(data, false);
+                    }
+                })
+                .catch(error => {
+                    console.debug('Нет сохраненного анализа или ошибка загрузки:', error);
+                });
+        }
+
         aiAnalysisBtn.addEventListener('click', function() {
             const testSuiteId = testSuiteData.id;
             if (confirm('Запустить анализ тест-сьюта с помощью ИИ? Это может занять несколько минут.')) {
@@ -1750,6 +1849,7 @@
                     .then(data => {
                         if (data.success) {
                             showMessage(data.message, 'success');
+                            renderAnalysisResult(data, true);
                             if (currentTestCaseData) {
                                 loadTestCaseDetail(currentTestCaseData.id);
                             }
@@ -1768,6 +1868,7 @@
                     });
             }
         });
+        loadLastAnalysis();
     }
 
     // Клонирование тест-кейса
