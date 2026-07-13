@@ -190,6 +190,7 @@
             flex: 1 1 auto;
             min-height: 0;
             height: 0;
+            max-height: 100%;
             overflow-y: auto;
             overscroll-behavior-y: contain;
         }
@@ -789,7 +790,7 @@
                             <i class="fas fa-inbox fa-lg text-muted mb-2"></i>
                             <p class="text-muted mb-0 small">Тест-кейсы не найдены</p>
                         </div>
-                        <div id="testCasesContainer" tabindex="0" class="h-100">
+                        <div id="testCasesContainer" tabindex="0">
                             <div th:each="testCase : ${testCases}"
                                  class="test-case-item border-bottom"
                                  th:id="'test-case-item-' + ${testCase.id}"
