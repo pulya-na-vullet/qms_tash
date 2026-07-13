@@ -96,7 +96,19 @@
                                     {{ log.action_type }}
                                 {% endif %}
                             </td>
-                            <td>{{ log.initiated_by.full_name|default:log.initiated_by.username|default:"Неизвестно" }}</td>
+                            <td>
+                                {% if log.initiated_by %}
+                                    <div>{{ log.initiated_by.full_name|default:log.initiated_by.username }}</div>
+                                    <div class="small text-muted">@{{ log.initiated_by.username }}</div>
+                                    {% with primary_role=log.initiated_by.roles.0 %}
+                                        {% if primary_role %}
+                                            <span class="badge bg-secondary">{{ primary_role }}</span>
+                                        {% endif %}
+                                    {% endwith %}
+                                {% else %}
+                                    Неизвестно
+                                {% endif %}
+                            </td>
                             <td>
                                 <div>{{ log.started_at|date:"d.m.Y H:i:s" }}</div>
                                 {% if log.finished_at %}
