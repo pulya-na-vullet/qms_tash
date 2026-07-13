@@ -917,6 +917,7 @@
         const usTcModalTitleEl = document.getElementById('usTcListModalTitle');
         const usTcModalBodyEl = document.getElementById('usTcListModalBody');
         const usTcModal = usTcModalEl ? new bootstrap.Modal(usTcModalEl) : null;
+        const currentProjectId = document.getElementById('projectData')?.dataset?.projectId || '';
 
         const getIntersections = (row) => {
             const intersections = [];
@@ -929,7 +930,8 @@
                 const tcLink = th?.querySelector('.rotated-link');
                 const tcId = tcLink?.dataset?.testCaseId || idx;
                 const tcLabel = tcLink?.textContent?.trim() || `TC-${tcId}`;
-                intersections.push({ id: tcId, label: tcLabel });
+                const tcUrl = tcLink?.getAttribute('href') || '';
+                intersections.push({ id: tcId, label: tcLabel, url: tcUrl });
             });
             return intersections;
         };
@@ -976,22 +978,63 @@
             if (!intersections.length) {
                 usTcModalBodyEl.innerHTML = '<div class="text-muted">Для этой US нет пересечений с тест-кейсами.</div>';
             } else {
+                const linkLines = intersections
+                    .map(tc => {
+                        if (!tc.url) return '';
+                        try {
+                            return new URL(tc.url, window.location.origin).toString();
+                        } catch (_) {
+                            return tc.url;
+                        }
+                    })
+                    .filter(Boolean);
+
                 usTcModalBodyEl.innerHTML = `
                     <div class="mb-2">Найдено пересечений: <strong>${intersections.length}</strong></div>
+                    <div class="mb-2">
+                        <button class="btn btn-sm btn-outline-secondary" id="copyUsTcLinksBtn">
+                            <i class="fas fa-copy me-1"></i>Скопировать ссылки
+                        </button>
+                    </div>
                     <div class="d-flex flex-wrap gap-2">
                         ${intersections.map(tc => `
-                            <button class="btn btn-sm btn-outline-primary open-us-tc-btn" data-test-case-id="${tc.id}">
+                            <button class="btn btn-sm btn-outline-primary open-us-tc-btn"
+                                    data-test-case-id="${tc.id}"
+                                    data-test-case-url="${tc.url || ''}">
                                 ${tc.label}
                             </button>
                         `).join('')}
                     </div>
                 `;
+                const copyBtn = usTcModalBodyEl.querySelector('#copyUsTcLinksBtn');
+                if (copyBtn) {
+                    copyBtn.addEventListener('click', async () => {
+                        if (!linkLines.length) {
+                            showMessage('Ссылки на ТК не найдены', 'warning');
+                            return;
+                        }
+                        try {
+                            await navigator.clipboard.writeText(linkLines.join('\n'));
+                            showMessage(`Скопировано ссылок: ${linkLines.length}`, 'success');
+                        } catch (_) {
+                            showMessage('Не удалось скопировать ссылки в буфер', 'danger');
+                        }
+                    });
+                }
                 usTcModalBodyEl.querySelectorAll('.open-us-tc-btn').forEach(btn => {
                     btn.addEventListener('click', () => {
-                        const tcId = btn.dataset.testCaseId;
+                        const tcUrl = (btn.dataset.testCaseUrl || '').trim();
+                        if (tcUrl) {
+                            window.location.href = tcUrl;
+                            return;
+                        }
+                        const tcId = (btn.dataset.testCaseId || '').trim();
                         if (tcId) {
-                            usTcModal.hide();
-                            openTestCaseModal(tcId);
+                            if (currentProjectId) {
+                                window.location.href = `/test-suite/${currentProjectId}?testCaseId=${tcId}`;
+                            } else {
+                                openTestCaseModal(tcId);
+                            }
                         }
                     });
                 });
